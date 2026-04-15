@@ -44,13 +44,13 @@ button:hover {
   background: #1d4ed8;
 }
 
-.sensor-grid {
+.chart-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
 }
 
-.sensor-card {
+.chart-card {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
@@ -58,7 +58,7 @@ button:hover {
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
 }
 
-.sensor-card header {
+.chart-card header {
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
@@ -71,8 +71,8 @@ h2 {
 }
 
 .value {
-  margin: 1rem 0 0.45rem;
-  font-size: 1.4rem;
+  margin: 0.9rem 0 0.25rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: #0f172a;
 }
@@ -98,6 +98,32 @@ h2 {
 .badge.alerta {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.chart-card svg {
+  width: 100%;
+  height: auto;
+  margin-top: 0.55rem;
+}
+
+.chart-grid-line {
+  fill: none;
+  stroke: #e2e8f0;
+  stroke-width: 1;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--line-color, #2563eb);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-legend {
+  margin: 0.4rem 0 0;
+  color: #64748b;
+  font-size: 0.8rem;
 }
 
 .timestamp {
