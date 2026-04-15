@@ -6,6 +6,13 @@ const UPDATE_INTERVAL_MS = 3000
 const CHART_WIDTH = 340
 const CHART_HEIGHT = 160
 const CHART_PADDING = 18
+const EMPTY_READING = {
+  humidity: 0,
+  vibration: 0,
+  pitch: 0,
+  roll: 0,
+  timestamp: new Date(0),
+}
 
 const buildMockReading = () => {
   const humidity = Math.floor(Math.random() * 41) + 40
@@ -108,7 +115,8 @@ function App() {
     return () => clearInterval(intervalId)
   }, [])
 
-  const latest = readings.at(-1)
+  const safeReadings = readings.length > 0 ? readings : [EMPTY_READING]
+  const latest = safeReadings.at(-1)
 
   return (
     <main className="dashboard">
@@ -129,7 +137,7 @@ function App() {
         <SeriesCard
           title="Giroscopio (Pitch)"
           unit="°"
-          values={readings.map((reading) => reading.pitch)}
+          values={safeReadings.map((reading) => reading.pitch)}
           color="#ef4444"
           latestLabel={`Pitch ${latest.pitch}° / Roll ${latest.roll}°`}
           status={getGyroStatus(latest.pitch, latest.roll)}
@@ -137,15 +145,15 @@ function App() {
         <SeriesCard
           title="Humedad del suelo"
           unit="%"
-          values={readings.map((reading) => reading.humidity)}
+          values={safeReadings.map((reading) => reading.humidity)}
           color="#2563eb"
           latestLabel={`${latest.humidity}%`}
           status={getHumidityStatus(latest.humidity)}
         />
         <SeriesCard
           title="Vibración"
-          unit="aceleración"
-          values={readings.map((reading) => reading.vibration)}
+          unit="g"
+          values={safeReadings.map((reading) => reading.vibration)}
           color="#10b981"
           latestLabel={`${latest.vibration} g`}
           status={getVibrationStatus(latest.vibration)}
