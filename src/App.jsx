@@ -35,11 +35,11 @@ const buildInitialReadings = () => {
 
   return Array.from({ length: MAX_POINTS }, (_, index) => {
     const reading = buildMockReading()
-    const offset = (MAX_POINTS - index - 1) * UPDATE_INTERVAL_MS
+    const timeOffsetMs = (MAX_POINTS - index - 1) * UPDATE_INTERVAL_MS
 
     return {
       ...reading,
-      timestamp: new Date(now - offset),
+      timestamp: new Date(now - timeOffsetMs),
     }
   })
 }
@@ -59,11 +59,11 @@ const buildPolylinePoints = (values, stats) => {
 
   const usableWidth = CHART_WIDTH - CHART_PADDING * 2
   const usableHeight = CHART_HEIGHT - CHART_PADDING * 2
-  const xAxisSegments = Math.max(values.length - 1, 1)
+  const horizontalSteps = Math.max(values.length - 1, 1)
 
   return values
     .map((value, index) => {
-      const x = CHART_PADDING + (usableWidth * index) / xAxisSegments
+      const x = CHART_PADDING + (usableWidth * index) / horizontalSteps
       const normalized = (value - stats.min) / stats.range
       const y = CHART_HEIGHT - CHART_PADDING - normalized * usableHeight
       return `${x},${y}`
