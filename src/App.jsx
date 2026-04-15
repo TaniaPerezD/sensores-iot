@@ -51,11 +51,11 @@ const buildPolylinePoints = (values, stats) => {
 
   const usableWidth = CHART_WIDTH - CHART_PADDING * 2
   const usableHeight = CHART_HEIGHT - CHART_PADDING * 2
-  const steps = Math.max(values.length - 1, 1)
+  const xAxisSegments = Math.max(values.length - 1, 1)
 
   return values
     .map((value, index) => {
-      const x = CHART_PADDING + (usableWidth * index) / steps
+      const x = CHART_PADDING + (usableWidth * index) / xAxisSegments
       const normalized = (value - stats.min) / stats.range
       const y = CHART_HEIGHT - CHART_PADDING - normalized * usableHeight
       return `${x},${y}`
@@ -83,6 +83,7 @@ function SeriesCard({ title, unit, values, color, latestLabel, status }) {
       <p className="value">{latestLabel}</p>
       <p className="meta">Unidad: {unit}</p>
       <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} role="img" aria-label={`Gráfica de ${title}`}>
+        <title>{`Gráfica de ${title}`}</title>
         <polyline className="chart-grid-line" points={`${CHART_PADDING},${CHART_PADDING} ${CHART_WIDTH - CHART_PADDING},${CHART_PADDING}`} />
         <polyline className="chart-grid-line" points={`${CHART_PADDING},${CHART_HEIGHT / 2} ${CHART_WIDTH - CHART_PADDING},${CHART_HEIGHT / 2}`} />
         <polyline className="chart-grid-line" points={`${CHART_PADDING},${CHART_HEIGHT - CHART_PADDING} ${CHART_WIDTH - CHART_PADDING},${CHART_HEIGHT - CHART_PADDING}`} />
