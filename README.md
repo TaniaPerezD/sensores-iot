@@ -4,7 +4,7 @@ Base en **React + Vite** para un dashboard de sensores IoT (giroscopio, humedad 
 
 ## Requisitos
 
-- Node.js 20+
+- Node.js ^20.19.0 o >=22.12.0
 - npm 10+
 
 ## Ejecutar en local
