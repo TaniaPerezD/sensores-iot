@@ -1,120 +1,80 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
 import './App.css'
 
+const buildMockSensors = () => {
+  const humidity = Math.floor(Math.random() * 41) + 40
+  const vibration = Number((Math.random() * 1.5).toFixed(2))
+  const pitch = Math.floor(Math.random() * 31) - 15
+  const roll = Math.floor(Math.random() * 31) - 15
+
+  return [
+    {
+      id: 'gyroscope',
+      name: 'Giroscopio',
+      value: `Pitch ${pitch}° / Roll ${roll}°`,
+      status: Math.abs(pitch) > 10 || Math.abs(roll) > 10 ? 'alerta' : 'normal',
+      unit: 'orientación',
+    },
+    {
+      id: 'soil-humidity',
+      name: 'Humedad del suelo',
+      value: `${humidity}%`,
+      status: humidity < 50 ? 'alerta' : 'normal',
+      unit: 'humedad',
+    },
+    {
+      id: 'vibration',
+      name: 'Vibración',
+      value: `${vibration} g`,
+      status: vibration > 1 ? 'alerta' : 'normal',
+      unit: 'aceleración',
+    },
+  ]
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [sensors, setSensors] = useState(() => buildMockSensors())
+  const [updatedAt, setUpdatedAt] = useState(() => new Date())
+
+  const refreshData = () => {
+    setSensors(buildMockSensors())
+    setUpdatedAt(new Date())
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
+    <main className="dashboard">
+      <header className="dashboard-header">
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
+          <p className="eyebrow">Dashboard IoT</p>
+          <h1>Monitoreo de sensores</h1>
+          <p className="subtitle">
+            Base inicial para visualizar giroscopio, humedad del suelo y vibración.
           </p>
         </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+        <button type="button" onClick={refreshData}>
+          Actualizar datos
         </button>
+      </header>
+
+      <section className="sensor-grid" aria-label="Panel de sensores">
+        {sensors.map((sensor) => (
+          <article key={sensor.id} className="sensor-card">
+            <header>
+              <h2>{sensor.name}</h2>
+              <span className={`badge ${sensor.status}`}>
+                {sensor.status === 'normal' ? 'Normal' : 'Alerta'}
+              </span>
+            </header>
+            <p className="value">{sensor.value}</p>
+            <p className="meta">Unidad: {sensor.unit}</p>
+          </article>
+        ))}
       </section>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <p className="timestamp">
+        Última actualización: {updatedAt.toLocaleTimeString('es-CO')}
+      </p>
+    </main>
   )
 }
 
