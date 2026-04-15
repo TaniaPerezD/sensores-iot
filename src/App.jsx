@@ -6,6 +6,7 @@ const UPDATE_INTERVAL_MS = 3000
 const CHART_WIDTH = 340
 const CHART_HEIGHT = 160
 const CHART_PADDING = 18
+const MINIMUM_SERIES_RANGE = 1
 const EMPTY_READING = {
   humidity: 0,
   vibration: 0,
@@ -46,7 +47,7 @@ const buildInitialReadings = () => {
 const getSeriesStats = (values) => {
   const min = Math.min(...values)
   const max = Math.max(...values)
-  const range = max - min || 1
+  const range = max - min || MINIMUM_SERIES_RANGE
 
   return { min, max, range }
 }
@@ -89,7 +90,7 @@ function SeriesCard({ title, unit, values, color, latestLabel, status }) {
       </header>
       <p className="value">{latestLabel}</p>
       <p className="meta">Unidad: {unit}</p>
-      <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} role="img" aria-label={`Gráfica de ${title}`}>
+      <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} role="img">
         <title>{`Gráfica de ${title}`}</title>
         <polyline className="chart-grid-line" points={`${CHART_PADDING},${CHART_PADDING} ${CHART_WIDTH - CHART_PADDING},${CHART_PADDING}`} />
         <polyline className="chart-grid-line" points={`${CHART_PADDING},${CHART_HEIGHT / 2} ${CHART_WIDTH - CHART_PADDING},${CHART_HEIGHT / 2}`} />
