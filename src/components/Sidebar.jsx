@@ -41,6 +41,7 @@ export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }
         </svg>
       ),
     },
+   
     {
       key: tabs.MPU,
       label: "Inclinación / movimiento",
@@ -56,6 +57,22 @@ export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }
         </svg>
       ),
     },
+    {
+      key: tabs.HISTORICAL,
+      label: "Histórico",
+      icon: (
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.2" />
+          <path
+            d="M7 3v2M7 9v2M3 7h2M9 7h2"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+          />
+        </svg>
+      ),
+    },
+      
   ];
 
   return (
@@ -119,19 +136,6 @@ export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }
         <span>Configuración</span>
       </button>
 
-      <button className="sw-nav-btn" type="button">
-        <span className="sw-nav-icon">
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-            <path
-              d="M2 4h10M2 7h7M2 10h5"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-        <span>Histórico</span>
-      </button>
 
       <div className="sw-sidebar-footer">
         <div className={`sw-risk-badge${criticalCount > 0 ? " danger" : ""}`}>

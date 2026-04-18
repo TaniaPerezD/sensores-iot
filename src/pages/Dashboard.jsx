@@ -4,12 +4,14 @@ import StatCard from "../components/StatCard";
 import SensorChart from "../components/SensorChart";
 import AlertPanel from "../components/AlertPanel";
 import StatusPanel from "../components/StatusPanel";
+import Historico from "./Historico";
 
 const TABS = {
   GENERAL: "general",
   SOIL: "soil",
   VIBRATION: "vibration",
   MPU: "mpu",
+  HISTORICAL: "historical",
 };
 
 const N = 48;
@@ -612,6 +614,10 @@ export default function Dashboard() {
       title: "Inclinación y movimiento",
       sub: "Acelerómetro + giroscopio MPU-6050",
     },
+    [TABS.HISTORICAL]: {
+      title: "Histórico de eventos",
+      sub: "Registro completo sensores",
+    },
   };
 
   const meta = PAGE_META[activeTab];
@@ -647,6 +653,7 @@ export default function Dashboard() {
           {activeTab === TABS.SOIL && renderSoil()}
           {activeTab === TABS.VIBRATION && renderVibration()}
           {activeTab === TABS.MPU && renderMPU()}
+          {activeTab === TABS.HISTORICAL && <Historico />}
         </div>
       </div>
     </div>
