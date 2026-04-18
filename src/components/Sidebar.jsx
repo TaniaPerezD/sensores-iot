@@ -130,7 +130,7 @@ export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }
             />
           </svg>
         </span>
-        <span>Historial de eventos</span>
+        <span>Histórico</span>
       </button>
 
       <div className="sw-sidebar-footer">
