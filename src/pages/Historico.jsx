@@ -1,12 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import SensorChart from "../components/SensorChart";
+import { useHistoryData } from "../hooks/useHistoryData";
+import { useSocketSnapshot } from "../hooks/useSocketSnapshot";
+import { formatDateTime, formatHour, formatNumber } from "../utils/formatters";
 
 const QUICK_RANGES = [
-  { key: "15m", label: "15 min", ms: 15 * 60 * 1000 },
-  { key: "1h", label: "1 hora", ms: 60 * 60 * 1000 },
-  { key: "6h", label: "6 horas", ms: 6 * 60 * 60 * 1000 },
-  { key: "24h", label: "24 horas", ms: 24 * 60 * 60 * 1000 },
-  { key: "7d", label: "7 días", ms: 7 * 24 * 60 * 60 * 1000 },
+  { key: "10s", label: "10 seg" },
+  { key: "30s", label: "30 seg" },
+  { key: "1m", label: "1 min" },
+  { key: "5m", label: "5 min" },
+  { key: "15m", label: "15 min" },
+  { key: "1h", label: "1 hora" },
+  { key: "6h", label: "6 horas" },
+  { key: "24h", label: "24 horas" },
+  { key: "7d", label: "7 días" },
 ];
 
 const SENSOR_OPTIONS = [
@@ -17,39 +24,19 @@ const SENSOR_OPTIONS = [
   { key: "gyro", label: "Rotación" },
 ];
 
-function formatDateTimeLocal(date) {
-  const d = new Date(date);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
-}
-
-function formatDisplayDate(date) {
-  return new Date(date).toLocaleString("es-BO", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function average(arr) {
   if (!arr.length) return 0;
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
+  return arr.reduce((a, b) => a + Number(b || 0), 0) / arr.length;
 }
 
 function max(arr) {
   if (!arr.length) return 0;
-  return Math.max(...arr);
+  return Math.max(...arr.map((v) => Number(v || 0)));
 }
 
 function min(arr) {
   if (!arr.length) return 0;
-  return Math.min(...arr);
+  return Math.min(...arr.map((v) => Number(v || 0)));
 }
 
 function getStatusCount(records) {
@@ -57,12 +44,13 @@ function getStatusCount(records) {
   let warning = 0;
 
   records.forEach((r) => {
-    if (r.soil <= 25 || r.vib >= 8 || r.accel >= 2.2) {
+    if (r.soil >= 80 || r.vib >= 8 || r.accel >= 2.2 || r.gyro >= 1.5) {
       critical++;
     } else if (
-      (r.soil > 25 && r.soil <= 40) ||
+      (r.soil >= 60 && r.soil < 80) ||
       (r.vib >= 3 && r.vib < 8) ||
-      (r.accel >= 1.3 && r.accel < 2.2)
+      (r.accel >= 1.3 && r.accel < 2.2) ||
+      (r.gyro >= 0.8 && r.gyro < 1.5)
     ) {
       warning++;
     }
@@ -78,7 +66,7 @@ function EmptyState() {
         Sin registros para este período
       </div>
       <div className="sw-chart-hint">
-        Ajusta el rango de fechas o verifica que existan datos guardados en el historial.
+        Ajusta el rango de tiempo o verifica que existan muestras guardadas.
       </div>
     </div>
   );
@@ -97,107 +85,64 @@ function KpiMini({ label, value, hint }) {
 }
 
 export default function Historico() {
-  const [allRecords, setAllRecords] = useState([]);
-  const [selectedQuickRange, setSelectedQuickRange] = useState("1h");
+  const {
+    deviceCode,
+    range,
+    setRange,
+    history,
+    from,
+    setFrom,
+    to,
+    setTo,
+    loading,
+    refreshing,
+    error,
+    reloadByRange,
+    reloadByDates,
+  } = useHistoryData("esp32-node-001", "24h");
+
   const [sensorFilter, setSensorFilter] = useState("all");
 
-  const [startDate, setStartDate] = useState(() => {
-    const now = Date.now();
-    return formatDateTimeLocal(now - 60 * 60 * 1000);
-  });
-
-  const [endDate, setEndDate] = useState(() => formatDateTimeLocal(Date.now()));
-
-  useEffect(() => {
-    const raw = localStorage.getItem("slidewatch_history");
-    if (!raw) {
-      setAllRecords([]);
-      return;
+  const handleSocketUpdate = useCallback(() => {
+    if (from && to) {
+      reloadByDates();
+    } else {
+      reloadByRange();
     }
+  }, [from, to, reloadByDates, reloadByRange]);
 
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const normalized = parsed
-          .filter((r) => r?.time)
-          .map((r) => ({
-            time: r.time,
-            soil: Number(r.soil ?? 0),
-            vib: Number(r.vib ?? 0),
-            accel: Number(r.accel ?? 0),
-            gyro: Number(r.gyro ?? 0),
-            raw: Number(r.raw ?? 0),
-            dur: Number(r.dur ?? 0),
-          }))
-          .sort((a, b) => new Date(a.time) - new Date(b.time));
+  useSocketSnapshot(handleSocketUpdate);
 
-        setAllRecords(normalized);
-      } else {
-        setAllRecords([]);
-      }
-    } catch (error) {
-      console.error("Error leyendo slidewatch_history:", error);
-      setAllRecords([]);
-    }
-  }, []);
+  const records = Array.isArray(history?.records) ? history.records : [];
+  const times = Array.isArray(history?.times)
+    ? history.times.map((t) => formatHour(t))
+    : [];
 
-  const applyQuickRange = (range) => {
-    const found = QUICK_RANGES.find((r) => r.key === range);
-    if (!found) return;
-
-    const end = Date.now();
-    const start = end - found.ms;
-
-    setSelectedQuickRange(range);
-    setStartDate(formatDateTimeLocal(start));
-    setEndDate(formatDateTimeLocal(end));
-  };
-
-  const filteredRecords = useMemo(() => {
-    const start = new Date(startDate).getTime();
-    const end = new Date(endDate).getTime();
-
-    return allRecords.filter((r) => {
-      const t = new Date(r.time).getTime();
-      return t >= start && t <= end;
-    });
-  }, [allRecords, startDate, endDate]);
-
-  const times = useMemo(() => {
-    return filteredRecords.map((r) =>
-      new Date(r.time).toLocaleTimeString("es-BO", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      })
-    );
-  }, [filteredRecords]);
-
-  const soilData = filteredRecords.map((r) => r.soil);
-  const vibData = filteredRecords.map((r) => r.vib);
-  const accelData = filteredRecords.map((r) => r.accel);
-  const gyroData = filteredRecords.map((r) => r.gyro);
-  const rawData = filteredRecords.map((r) => r.raw);
-  const durData = filteredRecords.map((r) => r.dur);
+  const soilData = history?.soil || [];
+  const vibData = history?.vib || [];
+  const accelData = history?.accel || [];
+  const gyroData = history?.gyro || [];
+  const rawData = history?.raw || [];
+  const durData = history?.dur || [];
 
   const stats = useMemo(() => {
-    const total = filteredRecords.length;
-    const soilAvg = average(soilData).toFixed(1);
-    const vibAvg = average(vibData).toFixed(1);
-    const accelAvg = average(accelData).toFixed(2);
-    const gyroAvg = average(gyroData).toFixed(2);
+    const total = records.length;
+    const soilAvg = average(soilData);
+    const vibAvg = average(vibData);
+    const accelAvg = average(accelData);
+    const gyroAvg = average(gyroData);
 
-    const soilMax = max(soilData).toFixed(1);
-    const vibMax = max(vibData).toFixed(0);
-    const accelMax = max(accelData).toFixed(2);
-    const gyroMax = max(gyroData).toFixed(2);
+    const soilMax = max(soilData);
+    const vibMax = max(vibData);
+    const accelMax = max(accelData);
+    const gyroMax = max(gyroData);
 
-    const soilMin = min(soilData).toFixed(1);
-    const vibMin = min(vibData).toFixed(0);
-    const accelMin = min(accelData).toFixed(2);
-    const gyroMin = min(gyroData).toFixed(2);
+    const soilMin = min(soilData);
+    const vibMin = min(vibData);
+    const accelMin = min(accelData);
+    const gyroMin = min(gyroData);
 
-    const counts = getStatusCount(filteredRecords);
+    const counts = getStatusCount(records);
 
     return {
       total,
@@ -216,7 +161,7 @@ export default function Historico() {
       critical: counts.critical,
       warning: counts.warning,
     };
-  }, [filteredRecords, soilData, vibData, accelData, gyroData]);
+  }, [records, soilData, vibData, accelData, gyroData]);
 
   const visibleCharts = useMemo(() => {
     if (sensorFilter === "soil") return ["soil", "raw"];
@@ -226,15 +171,32 @@ export default function Historico() {
     return ["soil", "vib", "accel", "gyro"];
   }, [sensorFilter]);
 
+  const applyQuickRange = (nextRange) => {
+    setRange(nextRange);
+  };
+
+  const handleCustomDateSearch = async () => {
+    await reloadByDates();
+  };
+
   return (
     <div className="sw-section">
-      <div className="sw-topbar sw-topbar--glass" style={{ position: "static", borderRadius: 18 }}>
+      <div
+        className="sw-topbar sw-topbar--glass"
+        style={{ position: "static", borderRadius: 18 }}
+      >
         <div>
           <div className="sw-page-title">Histórico de mediciones</div>
           <div className="sw-page-sub">
-            Consulta datos almacenados por rango de tiempo
+            Consulta datos almacenados por rango de tiempo · {deviceCode}
           </div>
         </div>
+
+        {refreshing && (
+          <div className="sw-chart-hint" style={{ fontWeight: 600 }}>
+            Actualizando...
+          </div>
+        )}
       </div>
 
       <div className="sw-card">
@@ -244,14 +206,16 @@ export default function Historico() {
 
         <div className="sw-card-body" style={{ gap: 16 }}>
           <div className="sw-history-quick-row">
-            {QUICK_RANGES.map((range) => (
+            {QUICK_RANGES.map((item) => (
               <button
-                key={range.key}
+                key={item.key}
                 type="button"
-                className={`sw-history-chip ${selectedQuickRange === range.key ? "active" : ""}`}
-                onClick={() => applyQuickRange(range.key)}
+                className={`sw-history-chip ${
+                  range === item.key ? "active" : ""
+                }`}
+                onClick={() => applyQuickRange(item.key)}
               >
-                {range.label}
+                {item.label}
               </button>
             ))}
           </div>
@@ -262,11 +226,8 @@ export default function Historico() {
               <input
                 type="datetime-local"
                 className="sw-history-input"
-                value={startDate}
-                onChange={(e) => {
-                  setSelectedQuickRange("");
-                  setStartDate(e.target.value);
-                }}
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
               />
             </div>
 
@@ -275,11 +236,8 @@ export default function Historico() {
               <input
                 type="datetime-local"
                 className="sw-history-input"
-                value={endDate}
-                onChange={(e) => {
-                  setSelectedQuickRange("");
-                  setEndDate(e.target.value);
-                }}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
               />
             </div>
 
@@ -297,18 +255,51 @@ export default function Historico() {
                 ))}
               </select>
             </div>
+
+            <div className="sw-history-field">
+              <label className="sw-history-label">Consulta personalizada</label>
+              <button
+                type="button"
+                className="sw-history-chip active"
+                onClick={handleCustomDateSearch}
+                style={{ width: "100%" }}
+              >
+                Buscar por fechas
+              </button>
+            </div>
           </div>
 
           <div className="sw-chart-hint">
-            Mostrando registros desde <strong>{formatDisplayDate(startDate)}</strong> hasta{" "}
-            <strong>{formatDisplayDate(endDate)}</strong>.
+            {from && to ? (
+              <>
+                Mostrando registros desde <strong>{formatDateTime(from)}</strong>{" "}
+                hasta <strong>{formatDateTime(to)}</strong>.
+              </>
+            ) : (
+              <>
+                Mostrando registros del rango rápido <strong>{range}</strong>.
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {!filteredRecords.length ? (
-        <EmptyState />
-      ) : (
+      {loading && (
+        <div className="sw-card" style={{ padding: 24 }}>
+          <div className="sw-card-title">Cargando histórico...</div>
+        </div>
+      )}
+
+      {!loading && error && (
+        <div className="sw-card" style={{ padding: 24 }}>
+          <div className="sw-card-title">Error</div>
+          <div className="sw-chart-hint">{error}</div>
+        </div>
+      )}
+
+      {!loading && !error && !records.length ? <EmptyState /> : null}
+
+      {!loading && !error && records.length > 0 && (
         <>
           <div className="sw-kpi-grid">
             <KpiMini
@@ -328,31 +319,43 @@ export default function Historico() {
             />
             <KpiMini
               label="Período"
-              value={`${Math.max(1, Math.round((new Date(endDate) - new Date(startDate)) / 60000))} min`}
-              hint="Duración del filtro actual"
+              value={range}
+              hint="Filtro temporal actual"
             />
           </div>
 
           <div className="sw-kpi-grid">
             <KpiMini
               label="Humedad promedio"
-              value={`${stats.soilAvg}%`}
-              hint={`mín ${stats.soilMin}% · máx ${stats.soilMax}%`}
+              value={`${formatNumber(stats.soilAvg, 1)}%`}
+              hint={`mín ${formatNumber(stats.soilMin, 1)}% · máx ${formatNumber(
+                stats.soilMax,
+                1
+              )}%`}
             />
             <KpiMini
               label="Vibración promedio"
-              value={stats.vibAvg}
-              hint={`mín ${stats.vibMin} · máx ${stats.vibMax}`}
+              value={formatNumber(stats.vibAvg, 1)}
+              hint={`mín ${formatNumber(stats.vibMin, 0)} · máx ${formatNumber(
+                stats.vibMax,
+                0
+              )}`}
             />
             <KpiMini
               label="Inclinación promedio"
-              value={stats.accelAvg}
-              hint={`mín ${stats.accelMin} · máx ${stats.accelMax}`}
+              value={formatNumber(stats.accelAvg, 2)}
+              hint={`mín ${formatNumber(stats.accelMin, 2)} · máx ${formatNumber(
+                stats.accelMax,
+                2
+              )}`}
             />
             <KpiMini
               label="Rotación promedio"
-              value={stats.gyroAvg}
-              hint={`mín ${stats.gyroMin} · máx ${stats.gyroMax}`}
+              value={formatNumber(stats.gyroAvg, 2)}
+              hint={`mín ${formatNumber(stats.gyroMin, 2)} · máx ${formatNumber(
+                stats.gyroMax,
+                2
+              )}`}
             />
           </div>
 
@@ -363,7 +366,7 @@ export default function Historico() {
                 data={soilData}
                 times={times}
                 color="#7a6555"
-                threshold={25}
+                threshold={80}
                 unit="%"
               />
             )}
@@ -381,7 +384,7 @@ export default function Historico() {
 
             {visibleCharts.includes("accel") && (
               <SensorChart
-                title="Magnitud de inclinación (m/s²)"
+                title="Magnitud de inclinación"
                 data={accelData}
                 times={times}
                 color="#8b5e3c"
@@ -396,7 +399,7 @@ export default function Historico() {
                 data={gyroData}
                 times={times}
                 color="#3a5560"
-                threshold={null}
+                threshold={1.5}
                 unit=""
               />
             )}
@@ -418,7 +421,7 @@ export default function Historico() {
                 data={durData}
                 times={times}
                 color="#8c6a3d"
-                threshold={null}
+                threshold={300}
                 unit="ms"
               />
             )}
@@ -428,7 +431,7 @@ export default function Historico() {
             <div className="sw-card-head">
               <span className="sw-card-title">Tabla de registros</span>
               <span className="sw-chart-hint">
-                {filteredRecords.length} fila{filteredRecords.length !== 1 ? "s" : ""}
+                {records.length} fila{records.length !== 1 ? "s" : ""}
               </span>
             </div>
 
@@ -446,18 +449,18 @@ export default function Historico() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRecords
+                  {records
                     .slice()
                     .reverse()
                     .map((row, index) => (
                       <tr key={`${row.time}-${index}`}>
-                        <td>{formatDisplayDate(row.time)}</td>
-                        <td>{row.soil.toFixed(1)}%</td>
-                        <td>{row.vib}</td>
-                        <td>{row.accel.toFixed(3)}</td>
-                        <td>{row.gyro.toFixed(3)}</td>
-                        <td>{row.raw}</td>
-                        <td>{row.dur} ms</td>
+                        <td>{formatDateTime(row.time)}</td>
+                        <td>{formatNumber(row.soil, 1)}%</td>
+                        <td>{formatNumber(row.vib, 0)}</td>
+                        <td>{formatNumber(row.accel, 3)}</td>
+                        <td>{formatNumber(row.gyro, 3)}</td>
+                        <td>{formatNumber(row.raw, 0)}</td>
+                        <td>{formatNumber(row.dur, 0)} ms</td>
                       </tr>
                     ))}
                 </tbody>
