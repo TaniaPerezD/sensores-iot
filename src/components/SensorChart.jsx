@@ -1,15 +1,114 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 
 function niceStep(range, ticks) {
-  const rough = range / ticks;
+  const rough = range / Math.max(ticks, 1);
   const exp = Math.pow(10, Math.floor(Math.log10(rough || 1)));
   for (const c of [1, 2, 2.5, 5, 10]) {
     if (c * exp >= rough) return c * exp;
   }
-  return rough;
+  return rough || 1;
 }
 
-const PAD = { l: 42, r: 12, t: 14, b: 28 };
+const PAD = { l: 48, r: 16, t: 16, b: 54 };
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function parseTimeValue(value) {
+  if (!value) return null;
+  const text = String(value);
+
+  if (text.includes("T")) {
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+
+  return null;
+}
+
+function formatAxisTimeLabel(value, totalPoints, isExpanded) {
+  if (!value) return "";
+
+  const text = String(value);
+  const date = parseTimeValue(value);
+
+  if (date) {
+    if (isExpanded && totalPoints <= 30) {
+      return date.toLocaleTimeString("es-BO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+    }
+
+    if (totalPoints <= 8) {
+      return date.toLocaleTimeString("es-BO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      });
+    }
+
+    if (totalPoints <= 20) {
+      return date.toLocaleTimeString("es-BO", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+    }
+
+    return date.toLocaleTimeString("es-BO", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  const parts = text.split(":");
+  if (parts.length >= 3) {
+    if (isExpanded && totalPoints <= 30) return parts.slice(0, 3).join(":");
+    if (totalPoints <= 8) return parts.slice(0, 3).join(":");
+    return parts.slice(0, 2).join(":");
+  }
+
+  return text;
+}
+
+function formatFullTooltipTime(value) {
+  if (!value) return "";
+  const text = String(value);
+  const date = parseTimeValue(value);
+
+  if (date) {
+    return date.toLocaleString("es-BO", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+  }
+
+  return text;
+}
+
+function getVisibleLabelCount(totalPoints, isExpanded) {
+  if (isExpanded) {
+    if (totalPoints <= 12) return totalPoints;
+    if (totalPoints <= 30) return 8;
+    if (totalPoints <= 60) return 7;
+    return 6;
+  }
+
+  if (totalPoints <= 8) return totalPoints;
+  if (totalPoints <= 20) return 5;
+  return 4;
+}
 
 function ChartCanvas({
   title,
@@ -18,25 +117,37 @@ function ChartCanvas({
   color,
   threshold,
   unit,
-  height = 100,
+  height = 110,
   isExpanded = false,
 }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
-  const zoomRef = useRef({ start: 0, end: data.length - 1, locked: false });
+
+  const zoomRef = useRef({
+    start: 0,
+    end: Math.max(data.length - 1, 0),
+    locked: false,
+  });
+
   const hoverRef = useRef(-1);
-  const dragRef = useRef({ active: false, x0: 0, selS: 0, selE: 0 });
+  const dragRef = useRef({
+    active: false,
+    x0: 0,
+    selS: 0,
+    selE: 0,
+  });
 
   const [zoomInfo, setZoomInfo] = useState("");
   const [isLocked, setIsLocked] = useState(false);
 
   const fmtV = useCallback(
     (v) => {
-      if (unit === "%") return v.toFixed(1) + "%";
-      if (unit === "ms") return Math.round(v) + "ms";
-      return Number.isInteger(v)
-        ? String(v)
-        : parseFloat(v.toFixed(3)).toString();
+      const num = Number(v || 0);
+      if (unit === "%") return `${num.toFixed(1)}%`;
+      if (unit === "ms") return `${Math.round(num)} ms`;
+      return Number.isInteger(num)
+        ? String(num)
+        : parseFloat(num.toFixed(3)).toString();
     },
     [unit]
   );
@@ -47,14 +158,14 @@ function ChartCanvas({
       const wrap = wrapRef.current;
       if (!canvas || !wrap) return;
 
-      const W = wrap.offsetWidth || 280;
+      const W = wrap.offsetWidth || 320;
       const H = height;
       const dpr = window.devicePixelRatio || 1;
 
       canvas.width = W * dpr;
       canvas.height = H * dpr;
-      canvas.style.width = W + "px";
-      canvas.style.height = H + "px";
+      canvas.style.width = `${W}px`;
+      canvas.style.height = `${H}px`;
 
       const ctx = canvas.getContext("2d");
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -63,13 +174,18 @@ function ChartCanvas({
 
       const slice = data.slice(s, e + 1);
       const tslice = times.slice(s, e + 1);
-      if (!slice.length) return;
+
+      if (!slice.length) {
+        ctx.fillStyle = "rgba(122,101,85,0.6)";
+        ctx.font = "12px 'DM Mono', monospace";
+        ctx.fillText("Sin datos", PAD.l, H / 2);
+        return;
+      }
 
       const rMin = Math.min(...slice);
       const rMax = Math.max(...slice);
-      const rRange = rMax - rMin || 1;
-
-      const yStep = niceStep(rRange, 4);
+      const safeRange = rMax - rMin || Math.max(Math.abs(rMax), 1);
+      const yStep = niceStep(safeRange, 4);
       const yMin = Math.floor(rMin / yStep) * yStep;
       const yMax = Math.ceil(rMax / yStep) * yStep;
       const yRange = yMax - yMin || 1;
@@ -77,20 +193,19 @@ function ChartCanvas({
       const cW = W - PAD.l - PAD.r;
       const cH = H - PAD.t - PAD.b;
 
-      const xOf = (i) => PAD.l + (i / (slice.length - 1 || 1)) * cW;
+      const xOf = (i) => PAD.l + (i / Math.max(slice.length - 1, 1)) * cW;
       const yOf = (v) => PAD.t + cH - ((v - yMin) / yRange) * cH;
 
       const gridColor = "rgba(122,101,85,0.10)";
       const axisColor = "rgba(122,101,85,0.24)";
-      const lblColor = "rgba(122,101,85,0.58)";
-      const tooltipBorder = color + "70";
+      const lblColor = "rgba(122,101,85,0.68)";
+      const tooltipBorder = `${color}70`;
 
       ctx.strokeStyle = axisColor;
-      ctx.lineWidth = 0.7;
+      ctx.lineWidth = 0.8;
       ctx.beginPath();
       ctx.moveTo(PAD.l, PAD.t);
       ctx.lineTo(PAD.l, PAD.t + cH);
-      ctx.moveTo(PAD.l, PAD.t + cH);
       ctx.lineTo(PAD.l + cW, PAD.t + cH);
       ctx.stroke();
 
@@ -98,6 +213,7 @@ function ChartCanvas({
         ? "11px 'DM Mono', monospace"
         : "9px 'DM Mono', monospace";
       ctx.textAlign = "right";
+      ctx.fillStyle = lblColor;
 
       for (let v = yMin; v <= yMax + yStep * 0.01; v += yStep) {
         const py = yOf(v);
@@ -112,33 +228,66 @@ function ChartCanvas({
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = lblColor;
         const lbl = Number.isInteger(v)
           ? String(v)
           : parseFloat(v.toFixed(2)).toString();
-        ctx.fillText(lbl, PAD.l - 6, py + 3);
+
+        ctx.fillStyle = lblColor;
+        ctx.fillText(lbl, PAD.l - 7, py + 3);
       }
 
-      const xN = Math.min(6, slice.length);
-      const xStep = Math.max(1, Math.floor((slice.length - 1) / (xN - 1)));
+      const visibleLabels = getVisibleLabelCount(slice.length, isExpanded);
+      const xStep =
+        slice.length <= 1
+          ? 1
+          : Math.max(1, Math.floor((slice.length - 1) / Math.max(visibleLabels - 1, 1)));
+
       ctx.textAlign = "center";
       ctx.fillStyle = lblColor;
       ctx.font = isExpanded
         ? "11px 'DM Mono', monospace"
         : "9px 'DM Mono', monospace";
 
+      const printed = new Set();
+
       for (let i = 0; i < slice.length; i += xStep) {
         const px = xOf(i);
+        const label = formatAxisTimeLabel(tslice[i], slice.length, isExpanded);
+        if (!label || printed.has(i)) continue;
+        printed.add(i);
+
         ctx.fillStyle = axisColor;
-        ctx.fillRect(px, PAD.t + cH, 0.8, 4);
+        ctx.fillRect(px, PAD.t + cH, 1, 4);
 
         if (px - PAD.l > 8 && px < W - 8) {
+          ctx.save();
+          ctx.translate(px, PAD.t + cH + 18);
+          ctx.rotate(-Math.PI / 7);
+          ctx.textAlign = "right";
           ctx.fillStyle = lblColor;
-          ctx.fillText(tslice[i] ? tslice[i].slice(0, 5) : "", px, PAD.t + cH + 15);
+          ctx.fillText(label, 0, 0);
+          ctx.restore();
         }
       }
 
-      if (threshold !== null) {
+      if (!printed.has(slice.length - 1) && slice.length > 1) {
+        const i = slice.length - 1;
+        const px = xOf(i);
+        const label = formatAxisTimeLabel(tslice[i], slice.length, isExpanded);
+
+        ctx.fillStyle = axisColor;
+        ctx.fillRect(px, PAD.t + cH, 1, 4);
+
+        ctx.save();
+        ctx.translate(px, PAD.t + cH + 18);
+        ctx.rotate(-Math.PI / 7);
+        ctx.textAlign = "right";
+        ctx.fillStyle = lblColor;
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
+      }
+
+      if (threshold !== null && threshold !== undefined) {
         const ty = yOf(threshold);
         if (ty >= PAD.t - 2 && ty <= PAD.t + cH + 2) {
           ctx.strokeStyle = "rgba(139,32,32,0.5)";
@@ -150,7 +299,7 @@ function ChartCanvas({
           ctx.stroke();
           ctx.setLineDash([]);
 
-          ctx.fillStyle = "rgba(139,32,32,0.65)";
+          ctx.fillStyle = "rgba(139,32,32,0.70)";
           ctx.font = isExpanded
             ? "10px 'DM Mono', monospace"
             : "8px 'DM Mono', monospace";
@@ -168,13 +317,13 @@ function ChartCanvas({
       ctx.closePath();
 
       const grad = ctx.createLinearGradient(0, PAD.t, 0, PAD.t + cH);
-      grad.addColorStop(0, color + "35");
-      grad.addColorStop(1, color + "05");
+      grad.addColorStop(0, `${color}35`);
+      grad.addColorStop(1, `${color}05`);
       ctx.fillStyle = grad;
       ctx.fill();
 
       ctx.strokeStyle = color;
-      ctx.lineWidth = isExpanded ? 2.2 : 1.6;
+      ctx.lineWidth = isExpanded ? 2.2 : 1.7;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -186,7 +335,7 @@ function ChartCanvas({
 
       const lp = pts[pts.length - 1];
       ctx.beginPath();
-      ctx.arc(lp[0], lp[1], isExpanded ? 4.5 : 3.2, 0, Math.PI * 2);
+      ctx.arc(lp[0], lp[1], isExpanded ? 4.5 : 3.5, 0, Math.PI * 2);
       ctx.fillStyle = color;
       ctx.fill();
 
@@ -196,6 +345,7 @@ function ChartCanvas({
         ctx.strokeStyle = "rgba(74,56,40,0.28)";
         ctx.lineWidth = 0.9;
         ctx.setLineDash([4, 4]);
+
         ctx.beginPath();
         ctx.moveTo(hx, PAD.t);
         ctx.lineTo(hx, PAD.t + cH);
@@ -205,6 +355,7 @@ function ChartCanvas({
         ctx.moveTo(PAD.l, hy);
         ctx.lineTo(PAD.l + cW, hy);
         ctx.stroke();
+
         ctx.setLineDash([]);
 
         ctx.beginPath();
@@ -216,19 +367,20 @@ function ChartCanvas({
         ctx.stroke();
 
         const val = slice[hov];
-        const lbl = `${tslice[hov]}  ${fmtV(val)}`;
+        const lbl = `${formatFullTooltipTime(tslice[hov])}   ${fmtV(val)}`;
+
         ctx.font = isExpanded
           ? "500 12px 'DM Mono', monospace"
           : "500 10px 'DM Mono', monospace";
 
         const tw = ctx.measureText(lbl).width;
-        const bw = tw + 14;
-        const bh = isExpanded ? 24 : 18;
+        const bw = tw + 16;
+        const bh = isExpanded ? 26 : 20;
 
         let bx = hx + 10;
-        let by = hy - 28;
+        let by = hy - 30;
         if (bx + bw > W - 4) bx = hx - bw - 10;
-        if (by < PAD.t) by = PAD.t + 2;
+        if (by < PAD.t) by = PAD.t + 4;
 
         ctx.fillStyle = "#fff";
         ctx.strokeStyle = tooltipBorder;
@@ -240,30 +392,38 @@ function ChartCanvas({
 
         ctx.fillStyle = "#2a1f15";
         ctx.textAlign = "left";
-        ctx.fillText(lbl, bx + 7, by + (isExpanded ? 15 : 12));
+        ctx.fillText(lbl, bx + 8, by + (isExpanded ? 16 : 13));
       }
     },
-    [data, times, color, threshold, unit, fmtV, height, isExpanded]
+    [color, data, fmtV, height, isExpanded, threshold, times]
   );
 
   const posToIdx = useCallback((px, s, e, W) => {
     const cW = W - PAD.l - PAD.r;
-    const rel = Math.max(0, Math.min(cW, px - PAD.l));
-    return s + Math.round((rel / cW) * (e - s));
+    const rel = clamp(px - PAD.l, 0, cW);
+    return s + Math.round((rel / Math.max(cW, 1)) * (e - s));
   }, []);
 
   const renderWithState = useCallback(() => {
     const z = zoomRef.current;
     draw(
       z.locked ? z.start : 0,
-      z.locked ? z.end : data.length - 1,
+      z.locked ? z.end : Math.max(data.length - 1, 0),
       hoverRef.current >= 0 ? hoverRef.current : -1
     );
-  }, [draw, data.length]);
+  }, [data.length, draw]);
 
   useEffect(() => {
+    zoomRef.current = {
+      start: 0,
+      end: Math.max(data.length - 1, 0),
+      locked: false,
+    };
+    hoverRef.current = -1;
+    setIsLocked(false);
+    setZoomInfo("");
     renderWithState();
-  }, [data, renderWithState]);
+  }, [data, times, renderWithState]);
 
   useEffect(() => {
     const onResize = () => renderWithState();
@@ -279,11 +439,11 @@ function ChartCanvas({
 
       const rect = canvas.getBoundingClientRect();
       const px = e.clientX - rect.left;
-      const W = wrap.offsetWidth || 280;
+      const W = wrap.offsetWidth || 320;
 
       const z = zoomRef.current;
       const s = z.locked ? z.start : 0;
-      const ee = z.locked ? z.end : data.length - 1;
+      const ee = z.locked ? z.end : Math.max(data.length - 1, 0);
 
       if (dragRef.current.active) {
         const x0 = Math.min(dragRef.current.x0, px);
@@ -295,30 +455,25 @@ function ChartCanvas({
         draw(s, ee, -1);
 
         const ctx = canvas.getContext("2d");
-        const dpr = window.devicePixelRatio || 1;
         const cW = W - PAD.l - PAD.r;
         const H = height;
         const cH = H - PAD.t - PAD.b;
 
-        ctx.save();
-        ctx.scale(dpr, dpr);
+        const sx = PAD.l + ((dragRef.current.selS - s) / Math.max(ee - s, 1)) * cW;
+        const ex = PAD.l + ((dragRef.current.selE - s) / Math.max(ee - s, 1)) * cW;
 
-        const sx = PAD.l + ((dragRef.current.selS - s) / (ee - s || 1)) * cW;
-        const ex = PAD.l + ((dragRef.current.selE - s) / (ee - s || 1)) * cW;
-
-        ctx.fillStyle = color + "18";
-        ctx.strokeStyle = color + "55";
+        ctx.fillStyle = `${color}18`;
+        ctx.strokeStyle = `${color}55`;
         ctx.lineWidth = 1;
         ctx.fillRect(sx, PAD.t, ex - sx, cH);
         ctx.strokeRect(sx, PAD.t, ex - sx, cH);
-        ctx.restore();
       } else {
         hoverRef.current = posToIdx(px, s, ee, W) - s;
-        hoverRef.current = Math.max(0, Math.min(ee - s, hoverRef.current));
+        hoverRef.current = clamp(hoverRef.current, 0, Math.max(ee - s, 0));
         draw(s, ee, hoverRef.current);
       }
     },
-    [draw, data.length, color, posToIdx, height]
+    [color, data.length, draw, height, posToIdx]
   );
 
   const handleMouseLeave = useCallback(() => {
@@ -326,40 +481,48 @@ function ChartCanvas({
     renderWithState();
   }, [renderWithState]);
 
-  const handleMouseDown = useCallback(
-    (e) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const rect = canvas.getBoundingClientRect();
-      dragRef.current = {
-        active: true,
-        x0: e.clientX - rect.left,
-        selS: 0,
-        selE: data.length - 1,
-      };
-    },
-    [data.length]
-  );
+  const handleMouseDown = useCallback((e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    dragRef.current = {
+      active: true,
+      x0: e.clientX - rect.left,
+      selS: 0,
+      selE: 0,
+    };
+  }, []);
 
   const handleMouseUp = useCallback(() => {
     const d = dragRef.current;
     d.active = false;
 
     if (d.selE - d.selS > 2) {
-      zoomRef.current = { start: d.selS, end: d.selE, locked: true };
+      zoomRef.current = {
+        start: d.selS,
+        end: d.selE,
+        locked: true,
+      };
+
       hoverRef.current = -1;
       setIsLocked(true);
       setZoomInfo(
-        `${times[d.selS]?.slice(0, 5)} → ${times[d.selE]?.slice(0, 5)} · ${
-          d.selE - d.selS + 1
-        } muestras`
+        `${formatFullTooltipTime(times[d.selS])} → ${formatFullTooltipTime(
+          times[d.selE]
+        )} · ${d.selE - d.selS + 1} muestras`
       );
       renderWithState();
+    } else {
+      renderWithState();
     }
-  }, [times, renderWithState]);
+  }, [renderWithState, times]);
 
   const handleDoubleClick = useCallback(() => {
-    zoomRef.current = { start: 0, end: data.length - 1, locked: false };
+    zoomRef.current = {
+      start: 0,
+      end: Math.max(data.length - 1, 0),
+      locked: false,
+    };
     hoverRef.current = -1;
     setIsLocked(false);
     setZoomInfo("");
@@ -368,14 +531,100 @@ function ChartCanvas({
 
   const handleUnlock = useCallback(() => {
     zoomRef.current.locked = false;
+    zoomRef.current.start = 0;
+    zoomRef.current.end = Math.max(data.length - 1, 0);
     setIsLocked(false);
     setZoomInfo("");
     renderWithState();
-  }, [renderWithState]);
+  }, [data.length, renderWithState]);
+
+  const handleWheel = useCallback(
+    (e) => {
+      e.preventDefault();
+
+      if (!data.length) return;
+
+      const wrap = wrapRef.current;
+      if (!wrap) return;
+
+      const rect = wrap.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const W = wrap.offsetWidth || 320;
+
+      const z = zoomRef.current;
+      let s = z.locked ? z.start : 0;
+      let ee = z.locked ? z.end : Math.max(data.length - 1, 0);
+
+      const currentRange = ee - s + 1;
+      if (currentRange <= 0) return;
+
+      const centerIdx = posToIdx(px, s, ee, W);
+      const zoomIn = e.deltaY < 0;
+
+      if (e.shiftKey) {
+        const move = Math.max(1, Math.round(currentRange * 0.15));
+        if (e.deltaY > 0) {
+          s = clamp(s + move, 0, Math.max(data.length - currentRange, 0));
+          ee = s + currentRange - 1;
+        } else {
+          s = clamp(s - move, 0, Math.max(data.length - currentRange, 0));
+          ee = s + currentRange - 1;
+        }
+      } else if (zoomIn) {
+        const nextRange = Math.max(6, Math.round(currentRange * 0.75));
+        const leftRatio = (centerIdx - s) / Math.max(currentRange - 1, 1);
+        s = Math.round(centerIdx - leftRatio * (nextRange - 1));
+        ee = s + nextRange - 1;
+
+        if (s < 0) {
+          ee += -s;
+          s = 0;
+        }
+        if (ee > data.length - 1) {
+          s -= ee - (data.length - 1);
+          ee = data.length - 1;
+        }
+        s = Math.max(0, s);
+      } else {
+        const nextRange = Math.min(data.length, Math.round(currentRange * 1.25));
+        const leftRatio = (centerIdx - s) / Math.max(currentRange - 1, 1);
+        s = Math.round(centerIdx - leftRatio * (nextRange - 1));
+        ee = s + nextRange - 1;
+
+        if (s < 0) {
+          ee += -s;
+          s = 0;
+        }
+        if (ee > data.length - 1) {
+          s -= ee - (data.length - 1);
+          ee = data.length - 1;
+        }
+        s = Math.max(0, s);
+      }
+
+      const locked = !(s === 0 && ee === data.length - 1);
+      zoomRef.current = { start: s, end: ee, locked };
+      setIsLocked(locked);
+
+      if (locked) {
+        setZoomInfo(
+          `${formatFullTooltipTime(times[s])} → ${formatFullTooltipTime(
+            times[ee]
+          )} · ${ee - s + 1} muestras`
+        );
+      } else {
+        setZoomInfo("");
+      }
+
+      hoverRef.current = -1;
+      renderWithState();
+    },
+    [data.length, posToIdx, renderWithState, times]
+  );
 
   return (
     <>
-      <div className="sw-chart-wrap" ref={wrapRef}>
+      <div className="sw-chart-wrap" ref={wrapRef} onWheel={handleWheel}>
         <canvas
           ref={canvasRef}
           className="sw-chart-canvas"
@@ -395,7 +644,9 @@ function ChartCanvas({
       </div>
 
       <div className="sw-zoom-bar">
-        <span className="sw-zoom-info">{zoomInfo}</span>
+        <span className="sw-zoom-info">
+          {zoomInfo || "rueda: zoom · shift + rueda: mover · doble clic: reiniciar"}
+        </span>
         {isLocked && (
           <>
             <button className="sw-zbtn sw-zbtn--pause" onClick={handleUnlock}>
@@ -443,8 +694,11 @@ export default function SensorChart({
         <div className="sw-chart-top">
           <div>
             <span className="sw-chart-label">{title}</span>
-            <div className="sw-chart-subhint">clic para ampliar · arrastra para zoom</div>
+            <div className="sw-chart-subhint">
+              clic para ampliar · arrastra para zoom · rueda para navegar
+            </div>
           </div>
+
           <button
             className="sw-chart-expand-btn"
             onClick={() => setExpanded(true)}
@@ -471,7 +725,7 @@ export default function SensorChart({
             color={color}
             threshold={threshold}
             unit={unit}
-            height={110}
+            height={115}
           />
         </div>
       </div>
@@ -486,7 +740,7 @@ export default function SensorChart({
               <div>
                 <div className="sw-chart-modal-title">{title}</div>
                 <div className="sw-chart-modal-sub">
-                  Vista ampliada · interactiva
+                  vista ampliada · zoom por arrastre · rueda para zoom · shift + rueda para mover
                 </div>
               </div>
 
@@ -506,7 +760,7 @@ export default function SensorChart({
               color={color}
               threshold={threshold}
               unit={unit}
-              height={420}
+              height={430}
               isExpanded
             />
           </div>
