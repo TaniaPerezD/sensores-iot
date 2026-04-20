@@ -1,10 +1,22 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import StatCard from "../components/StatCard";
 import SensorChart from "../components/SensorChart";
 import AlertPanel from "../components/AlertPanel";
 import StatusPanel from "../components/StatusPanel";
 import Historico from "./Historico";
+
+import { useDashboardData } from "../hooks/useDashboardData";
+import { useSocketSnapshot } from "../hooks/useSocketSnapshot";
+import { formatHour, formatNumber, toNumeric } from "../utils/formatters";
+import {
+  getSoilStatus,
+  getVibrationStatus,
+  getAccelStatus,
+  getGyroStatus,
+  getRiskStatus,
+  getTrend,
+} from "../utils/statusHelpers";
 
 const TABS = {
   GENERAL: "general",
@@ -14,246 +26,140 @@ const TABS = {
   HISTORICAL: "historical",
 };
 
-const N = 48;
-
-function genSeries(base, noise, n) {
-  const d = [];
-  let v = base;
-  for (let i = 0; i < n; i++) {
-    v += (Math.random() - 0.5) * noise;
-    v = Math.max(base - noise * 3.5, Math.min(base + noise * 3.5, v));
-    d.push(parseFloat(v.toFixed(3)));
-  }
-  return d;
+function average(arr = []) {
+  if (!arr.length) return 0;
+  return arr.reduce((a, b) => a + Number(b || 0), 0) / arr.length;
 }
 
-function genTimes(n) {
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date(Date.now() - (n - 1 - i) * 2000);
-    return d.toTimeString().slice(0, 8);
-  });
-}
-
-const INITIAL_DATA = {
-  soil: genSeries(47, 9, N),
-  vib: genSeries(2, 2, N).map((v) => Math.max(0, Math.round(v))),
-  accel: genSeries(1.02, 0.13, N),
-  gyro: genSeries(0.08, 0.04, N),
-  raw: genSeries(1842, 80, N).map(Math.round),
-  dur: genSeries(120, 45, N).map((v) => Math.max(0, Math.round(v))),
-  ax: genSeries(0.12, 0.08, N),
-  ay: genSeries(0.05, 0.06, N),
-  az: genSeries(0.98, 0.07, N),
-  gx: genSeries(0.02, 0.03, N),
-  times: genTimes(N),
-};
-
-export function getSoilStatus(v) {
-  if (v <= 25) return { label: "Crítico", type: "high" };
-  if (v <= 40) return { label: "Alerta", type: "med" };
-  return { label: "Normal", type: "low" };
-}
-
-export function getVibStatus(v) {
-  if (v >= 8) return { label: "Alta", type: "high" };
-  if (v >= 3) return { label: "Moderada", type: "med" };
-  return { label: "Sin actividad", type: "low" };
-}
-
-export function getAccelStatus(v) {
-  if (v >= 2.2) return { label: "Movimiento", type: "high" };
-  if (v >= 1.3) return { label: "Moderado", type: "med" };
-  return { label: "Estable", type: "low" };
-}
-
-export function getTrend(arr) {
-  if (arr.length < 6) return { cls: "flat", txt: "—" };
-  const r = arr.slice(-3).reduce((a, b) => a + b, 0) / 3;
-  const o = arr.slice(-6, -3).reduce((a, b) => a + b, 0) / 3;
-  const delta = r - o;
-  const pct = Math.abs((delta / (o || 1)) * 100).toFixed(0);
-
-  if (Math.abs(delta) < 0.02 * Math.abs(o || 1)) {
-    return { cls: "flat", txt: "estable" };
+function getRiskSummaryFromSnapshot(snapshot) {
+  if (!snapshot) {
+    return {
+      label: "Sin datos",
+      type: "neutral",
+      description: "Aún no hay muestras disponibles.",
+      score: 0,
+    };
   }
 
-  return delta > 0
-    ? { cls: "up", txt: `↑ ${pct}%` }
-    : { cls: "dn", txt: `↓ ${pct}%` };
-}
+  const risk = getRiskStatus(snapshot.risk_level);
+  const score = toNumeric(snapshot.risk_score, 0);
 
-function getRiskSummary(soilStatus, vibStatus, accelStatus) {
-  const levels = [soilStatus.type, vibStatus.type, accelStatus.type];
-
-  if (levels.includes("high")) {
+  if (snapshot.risk_level === "danger") {
     return {
       label: "Riesgo alto",
       type: "high",
       description: "Se detectan condiciones que requieren atención inmediata.",
-      score: 86,
+      score,
     };
   }
 
-  if (levels.includes("med")) {
+  if (snapshot.risk_level === "warning") {
     return {
       label: "Riesgo moderado",
       type: "med",
-      description: "Hay variaciones relevantes; se recomienda seguimiento continuo.",
-      score: 58,
+      description:
+        "Hay variaciones relevantes; se recomienda seguimiento continuo.",
+      score,
     };
   }
 
   return {
     label: "Riesgo bajo",
-    type: "low",
-    description: "Las variables actuales se mantienen dentro de parámetros esperados.",
-    score: 24,
+    type: risk.type,
+    description:
+      "Las variables actuales se mantienen dentro de parámetros esperados.",
+    score,
   };
-}
-
-function average(arr) {
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState(TABS.GENERAL);
-  const [data, setData] = useState(INITIAL_DATA);
-  const [clock, setClock] = useState(new Date().toTimeString().slice(0, 8));
-  const [lastChange, setLastChange] = useState({
-    soil: Date.now() - 180000,
-    vib: Date.now() - 600000,
-    accel: Date.now() - 3600000,
-  });
 
-  const tickRef = useRef(null);
+  const {
+    deviceCode,
+    range,
+    setRange,
+    snapshot,
+    setSnapshot,
+    series,
+    loading,
+    refreshing,
+    error,
+    reload,
+  } = useDashboardData("esp32-node-001", "24h");
 
-  useEffect(() => {
-    tickRef.current = setInterval(() => {
-      const now = new Date();
-      const ts = now.toTimeString().slice(0, 8);
-      setClock(ts);
+  const handleSocketUpdate = useCallback(
+    async (incomingSnapshot) => {
+      setSnapshot(incomingSnapshot);
 
-      setData((prev) => {
-        const pS = prev.soil[prev.soil.length - 1];
-        const pV = prev.vib[prev.vib.length - 1];
-        const pA = prev.accel[prev.accel.length - 1];
+      if (activeTab !== TABS.HISTORICAL) {
+        await reload();
+      }
+    },
+    [activeTab, reload, setSnapshot]
+  );
 
-        const nS = Math.max(0, Math.min(100, pS + (Math.random() - 0.5) * 4));
-        const nV = Math.max(0, Math.round(pV + (Math.random() - 0.5) * 2));
-        const nA = Math.max(0, pA + (Math.random() - 0.5) * 0.1);
-        const nG = Math.max(
-          0,
-          prev.gyro[prev.gyro.length - 1] + (Math.random() - 0.5) * 0.04
-        );
+  useSocketSnapshot(handleSocketUpdate);
 
-        if (getSoilStatus(pS).label !== getSoilStatus(nS).label) {
-          setLastChange((lc) => ({ ...lc, soil: Date.now() }));
-        }
+  const data = useMemo(() => {
+    return {
+      soil: Array.isArray(series?.soil) ? series.soil : [],
+      vib: Array.isArray(series?.vib) ? series.vib : [],
+      accel: Array.isArray(series?.accel) ? series.accel : [],
+      gyro: Array.isArray(series?.gyro) ? series.gyro : [],
+      raw: Array.isArray(series?.raw) ? series.raw : [],
+      dur: Array.isArray(series?.dur) ? series.dur : [],
+      ax: Array.isArray(series?.ax) ? series.ax : [],
+      ay: Array.isArray(series?.ay) ? series.ay : [],
+      az: Array.isArray(series?.az) ? series.az : [],
+      gx: Array.isArray(series?.gx) ? series.gx : [],
+      gy: Array.isArray(series?.gy) ? series.gy : [],
+      gz: Array.isArray(series?.gz) ? series.gz : [],
+      times: Array.isArray(series?.times)
+        ? series.times.map((t) => formatHour(t))
+        : [],
+    };
+  }, [series]);
 
-        if (getVibStatus(pV).label !== getVibStatus(nV).label) {
-          setLastChange((lc) => ({ ...lc, vib: Date.now() }));
-        }
-
-        if (getAccelStatus(pA).label !== getAccelStatus(nA).label) {
-          setLastChange((lc) => ({ ...lc, accel: Date.now() }));
-        }
-
-        const shift = (arr, val) => [...arr.slice(1), val];
-
-        return {
-          soil: shift(prev.soil, parseFloat(nS.toFixed(1))),
-          vib: shift(prev.vib, nV),
-          accel: shift(prev.accel, parseFloat(nA.toFixed(3))),
-          gyro: shift(prev.gyro, parseFloat(nG.toFixed(3))),
-          raw: shift(prev.raw, Math.round(2048 - nS * 8)),
-          dur: shift(
-            prev.dur,
-            Math.max(
-              0,
-              Math.round(
-                prev.dur[prev.dur.length - 1] + (Math.random() - 0.5) * 30
-              )
-            )
-          ),
-          ax: shift(
-            prev.ax,
-            parseFloat(
-              (prev.ax[prev.ax.length - 1] + (Math.random() - 0.5) * 0.05).toFixed(3)
-            )
-          ),
-          ay: shift(
-            prev.ay,
-            parseFloat(
-              (prev.ay[prev.ay.length - 1] + (Math.random() - 0.5) * 0.04).toFixed(3)
-            )
-          ),
-          az: shift(
-            prev.az,
-            parseFloat(
-              (prev.az[prev.az.length - 1] + (Math.random() - 0.5) * 0.04).toFixed(3)
-            )
-          ),
-          gx: shift(
-            prev.gx,
-            parseFloat(
-              (prev.gx[prev.gx.length - 1] + (Math.random() - 0.5) * 0.02).toFixed(3)
-            )
-          ),
-          times: shift(prev.times, ts),
-        };
-      });
-    }, 2000);
-
-    return () => clearInterval(tickRef.current);
-  }, []);
-
-  const sv = data.soil[data.soil.length - 1];
-  const vv = data.vib[data.vib.length - 1];
-  const av = data.accel[data.accel.length - 1];
-  const gv = data.gyro[data.gyro.length - 1];
+  const sv = toNumeric(snapshot?.soilPercent, 0);
+  const vv = toNumeric(snapshot?.vibrationCount, 0);
+  const av = toNumeric(snapshot?.accelMagnitude, 0);
+  const gv = toNumeric(snapshot?.gyroMagnitude, 0);
 
   const soilStatus = getSoilStatus(sv);
-  const vibStatus = getVibStatus(vv);
+  const vibStatus = getVibrationStatus(vv);
   const accelStatus = getAccelStatus(av);
+  const gyroStatus = getGyroStatus(gv);
 
-  const riskSummary = getRiskSummary(soilStatus, vibStatus, accelStatus);
+  const riskSummary = getRiskSummaryFromSnapshot(snapshot);
 
   const alerts = useMemo(() => {
     const items = [];
 
-    if (sv <= 25) {
+    if (soilStatus.type === "high") {
       items.push({
         title: "Humedad crítica del suelo",
-        description: `${sv.toFixed(0)}% — riesgo de saturación`,
+        description: `${formatNumber(
+          sv,
+          0
+        )}% — riesgo elevado de saturación`,
         type: "high",
       });
-    }
-
-    if (vv >= 8) {
-      items.push({
-        title: "Alta actividad sísmica",
-        description: `${vv} eventos en el intervalo actual`,
-        type: "high",
-      });
-    }
-
-    if (av >= 2.2) {
-      items.push({
-        title: "Desplazamiento detectado",
-        description: `Magnitud ${av.toFixed(2)} m/s² — anormal`,
-        type: "high",
-      });
-    }
-
-    if (sv > 25 && sv <= 40) {
+    } else if (soilStatus.type === "med") {
       items.push({
         title: "Humedad elevada",
-        description: `${sv.toFixed(0)}% — vigilar tendencia`,
+        description: `${formatNumber(sv, 0)}% — vigilar tendencia`,
         type: "med",
       });
     }
 
-    if (vv >= 3 && vv < 8) {
+    if (vibStatus.type === "high") {
+      items.push({
+        title: "Alta actividad vibratoria",
+        description: `${vv} eventos en el intervalo actual`,
+        type: "high",
+      });
+    } else if (vibStatus.type === "med") {
       items.push({
         title: "Vibración moderada",
         description: `${vv} eventos registrados`,
@@ -261,21 +167,53 @@ export default function Dashboard() {
       });
     }
 
+    if (accelStatus.type === "high") {
+      items.push({
+        title: "Desplazamiento detectado",
+        description: `Magnitud ${formatNumber(av, 2)} — anormal`,
+        type: "high",
+      });
+    } else if (accelStatus.type === "med") {
+      items.push({
+        title: "Movimiento moderado",
+        description: `Magnitud ${formatNumber(av, 2)} — observar evolución`,
+        type: "med",
+      });
+    }
+
+    if (gyroStatus.type === "high") {
+      items.push({
+        title: "Rotación crítica",
+        description: `Magnitud ${formatNumber(gv, 2)} °/s`,
+        type: "high",
+      });
+    } else if (gyroStatus.type === "med") {
+      items.push({
+        title: "Rotación moderada",
+        description: `Magnitud ${formatNumber(gv, 2)} °/s`,
+        type: "med",
+      });
+    }
+
     if (!items.length) {
       items.push({
         title: "Terreno estable",
-        description: "Sin anomalías en este momento",
+        description: "Sin anomalías relevantes en este momento",
         type: "ok",
       });
     }
 
     return items;
-  }, [sv, vv, av]);
+  }, [sv, vv, av, gv, soilStatus, vibStatus, accelStatus, gyroStatus]);
 
   const criticalCount = alerts.filter((a) => a.type === "high").length;
-  const avgSoil = average(data.soil).toFixed(1);
-  const avgVib = average(data.vib).toFixed(1);
-  const avgAccel = average(data.accel).toFixed(2);
+  const avgSoil = average(data.soil);
+  const avgVib = average(data.vib);
+  const avgAccel = average(data.accel);
+
+  const lastSampleTime = snapshot?.sampled_at
+    ? formatHour(snapshot.sampled_at)
+    : "--:--";
 
   const renderOverviewHero = () => (
     <div className={`sw-hero sw-hero--${riskSummary.type}`}>
@@ -291,11 +229,11 @@ export default function Dashboard() {
         <div className="sw-hero-meta">
           <div className="sw-hero-meta-card">
             <span className="sw-hero-meta-label">Estación</span>
-            <strong>Monitoreo N-01</strong>
+            <strong>{snapshot?.device_name || "Monitoreo N-01"}</strong>
           </div>
           <div className="sw-hero-meta-card">
             <span className="sw-hero-meta-label">Última lectura</span>
-            <strong>{clock}</strong>
+            <strong>{lastSampleTime}</strong>
           </div>
           <div className="sw-hero-meta-card">
             <span className="sw-hero-meta-label">Alertas críticas</span>
@@ -307,7 +245,9 @@ export default function Dashboard() {
       <div className="sw-hero-right">
         <div className="sw-risk-ring">
           <div className="sw-risk-ring-inner">
-            <span className="sw-risk-ring-value">{riskSummary.score}%</span>
+            <span className="sw-risk-ring-value">
+              {formatNumber(riskSummary.score, 0)}%
+            </span>
             <span className="sw-risk-ring-label">índice de riesgo</span>
           </div>
         </div>
@@ -319,15 +259,15 @@ export default function Dashboard() {
     <div className="sw-mini-grid">
       <div className="sw-mini-card">
         <span className="sw-mini-label">Promedio humedad</span>
-        <strong>{avgSoil}%</strong>
+        <strong>{formatNumber(avgSoil, 1)}%</strong>
       </div>
       <div className="sw-mini-card">
         <span className="sw-mini-label">Promedio vibración</span>
-        <strong>{avgVib} evt</strong>
+        <strong>{formatNumber(avgVib, 1)} evt</strong>
       </div>
       <div className="sw-mini-card">
         <span className="sw-mini-label">Promedio inclinación</span>
-        <strong>{avgAccel} m/s²</strong>
+        <strong>{formatNumber(avgAccel, 2)}</strong>
       </div>
       <div className="sw-mini-card">
         <span className="sw-mini-label">Sensores activos</span>
@@ -344,7 +284,7 @@ export default function Dashboard() {
       <div className="sw-kpi-grid">
         <StatCard
           label="Humedad del suelo"
-          value={`${sv.toFixed(0)}`}
+          value={`${formatNumber(sv, 0)}`}
           unit="%"
           status={soilStatus}
           trend={getTrend(data.soil)}
@@ -360,19 +300,19 @@ export default function Dashboard() {
         />
         <StatCard
           label="Inclinación"
-          value={`${av.toFixed(2)}`}
-          unit="m/s²"
+          value={`${formatNumber(av, 2)}`}
+          unit=""
           status={accelStatus}
           trend={getTrend(data.accel)}
           accentType={accelStatus.type}
         />
         <StatCard
           label="Rotación angular"
-          value={`${gv.toFixed(2)}`}
+          value={`${formatNumber(gv, 2)}`}
           unit="°/s"
-          status={{ label: "Nominal", type: "neutral" }}
+          status={gyroStatus}
           trend={getTrend(data.gyro)}
-          accentType="neutral"
+          accentType={gyroStatus.type}
         />
       </div>
 
@@ -382,7 +322,11 @@ export default function Dashboard() {
           soilStatus={soilStatus}
           vibStatus={vibStatus}
           accelStatus={accelStatus}
-          lastChange={lastChange}
+          lastChange={{
+            soil: Date.now(),
+            vib: Date.now(),
+            accel: Date.now(),
+          }}
         />
       </div>
 
@@ -392,7 +336,7 @@ export default function Dashboard() {
           data={data.soil}
           times={data.times}
           color="#7a6555"
-          threshold={25}
+          threshold={80}
           unit="%"
         />
         <SensorChart
@@ -404,7 +348,7 @@ export default function Dashboard() {
           unit=""
         />
         <SensorChart
-          title="Magnitud de inclinación (m/s²)"
+          title="Magnitud de inclinación"
           data={data.accel}
           times={data.times}
           color="#8b5e3c"
@@ -416,7 +360,7 @@ export default function Dashboard() {
           data={data.gyro}
           times={data.times}
           color="#3a5560"
-          threshold={null}
+          threshold={1.5}
           unit=""
         />
       </div>
@@ -428,7 +372,7 @@ export default function Dashboard() {
       <div className="sw-kpi-grid">
         <StatCard
           label="Humedad actual"
-          value={`${sv.toFixed(0)}`}
+          value={`${formatNumber(sv, 0)}`}
           unit="%"
           status={soilStatus}
           trend={getTrend(data.soil)}
@@ -436,17 +380,17 @@ export default function Dashboard() {
         />
         <StatCard
           label="Valor raw ADC"
-          value={`${data.raw[data.raw.length - 1]}`}
+          value={`${formatNumber(snapshot?.soilRaw, 0)}`}
           unit=""
           status={{ label: "Lectura directa", type: "neutral" }}
           trend={{ cls: "flat", txt: "—" }}
           accentType="neutral"
         />
         <StatCard
-          label="Promedio 24h"
-          value={`${avgSoil}`}
+          label="Promedio"
+          value={`${formatNumber(avgSoil, 1)}`}
           unit="%"
-          status={{ label: "Estable", type: "low" }}
+          status={{ label: "Referencia", type: "low" }}
           trend={{ cls: "flat", txt: "—" }}
           accentType="low"
         />
@@ -458,7 +402,7 @@ export default function Dashboard() {
           data={data.soil}
           times={data.times}
           color="#7a6555"
-          threshold={25}
+          threshold={80}
           unit="%"
         />
         <SensorChart
@@ -486,19 +430,25 @@ export default function Dashboard() {
         />
         <StatCard
           label="Duración total"
-          value={`${data.dur[data.dur.length - 1]}`}
+          value={`${formatNumber(snapshot?.vibrationDurationMs, 0)}`}
           unit="ms"
-          status={{ label: "Normal", type: "neutral" }}
+          status={{ label: "Monitoreo", type: "neutral" }}
           trend={{ cls: "flat", txt: "—" }}
           accentType="neutral"
         />
         <StatCard
           label="Estado digital"
-          value="No"
+          value={toNumeric(snapshot?.vibrationDetected, 0) ? "Sí" : "No"}
           unit=""
-          status={{ label: "Sin detección", type: "low" }}
+          status={
+            toNumeric(snapshot?.vibrationDetected, 0)
+              ? { label: "Detectada", type: "med" }
+              : { label: "Sin detección", type: "low" }
+          }
           trend={{ cls: "flat", txt: "—" }}
-          accentType="low"
+          accentType={
+            toNumeric(snapshot?.vibrationDetected, 0) ? "med" : "low"
+          }
         />
       </div>
 
@@ -516,7 +466,7 @@ export default function Dashboard() {
           data={data.dur}
           times={data.times}
           color="#a05828"
-          threshold={null}
+          threshold={300}
           unit="ms"
         />
       </div>
@@ -528,31 +478,31 @@ export default function Dashboard() {
       <div className="sw-kpi-grid">
         <StatCard
           label="Inclinación total"
-          value={`${av.toFixed(2)}`}
-          unit="m/s²"
+          value={`${formatNumber(av, 2)}`}
+          unit=""
           status={accelStatus}
           trend={getTrend(data.accel)}
           accentType={accelStatus.type}
         />
         <StatCard
           label="Rotación total"
-          value={`${gv.toFixed(2)}`}
+          value={`${formatNumber(gv, 2)}`}
           unit="°/s"
-          status={{ label: "Nominal", type: "neutral" }}
+          status={gyroStatus}
           trend={getTrend(data.gyro)}
-          accentType="neutral"
+          accentType={gyroStatus.type}
         />
         <StatCard
           label="Accel X"
-          value={`${data.ax[data.ax.length - 1].toFixed(2)}`}
+          value={`${formatNumber(snapshot?.accelX, 2)}`}
           unit=""
           status={{ label: "Normal", type: "neutral" }}
           trend={{ cls: "flat", txt: "—" }}
           accentType="neutral"
         />
         <StatCard
-          label="Gyro Z"
-          value={`${data.gx[data.gx.length - 1].toFixed(2)}`}
+          label="Gyro X"
+          value={`${formatNumber(snapshot?.gyroX, 2)}`}
           unit=""
           status={{ label: "Normal", type: "neutral" }}
           trend={{ cls: "flat", txt: "—" }}
@@ -600,23 +550,23 @@ export default function Dashboard() {
   const PAGE_META = {
     [TABS.GENERAL]: {
       title: "Resumen del terreno",
-      sub: "Monitoreo en tiempo real · Estación N-01",
+      sub: "Monitoreo en tiempo real",
     },
     [TABS.SOIL]: {
       title: "Humedad del suelo",
-      sub: "Sensor capacitivo · Profundidad 30 cm",
+      sub: "Sensor capacitivo",
     },
     [TABS.VIBRATION]: {
       title: "Sismicidad y vibración",
-      sub: "Geófono triaxial · Umbral 0.5 Hz",
+      sub: "Sensor de vibración",
     },
     [TABS.MPU]: {
       title: "Inclinación y movimiento",
-      sub: "Acelerómetro + giroscopio MPU-6050",
+      sub: "Acelerómetro + giroscopio MPU6050",
     },
     [TABS.HISTORICAL]: {
       title: "Histórico de eventos",
-      sub: "Registro completo sensores",
+      sub: "Registro completo de sensores",
     },
   };
 
@@ -635,7 +585,9 @@ export default function Dashboard() {
         <div className="sw-topbar sw-topbar--glass">
           <div>
             <div className="sw-page-title">{meta.title}</div>
-            <div className="sw-page-sub">{meta.sub}</div>
+            <div className="sw-page-sub">
+              {meta.sub} · {snapshot?.device_name || deviceCode}
+            </div>
           </div>
 
           <div className="sw-topbar-right">
@@ -643,16 +595,54 @@ export default function Dashboard() {
               <span className="sw-live-dot" />
               En línea
             </span>
-            <span className="sw-clock">{clock}</span>
-            <span className="sw-coord">4°35'N 74°04'W · 1840 m</span>
+
+            {refreshing && (
+              <span className="sw-chart-hint" style={{ fontWeight: 600 }}>
+                Actualizando...
+              </span>
+            )}
+
+            <select
+              value={range}
+              onChange={(e) => setRange(e.target.value)}
+              className="sw-range-select"
+            >
+              <option value="10s">10s</option>
+              <option value="30s">30s</option>
+              <option value="1m">1m</option>
+              <option value="5m">5m</option>
+              <option value="15m">15m</option>
+              <option value="30m">30m</option>
+              <option value="1h">1h</option>
+              <option value="6h">6h</option>
+              <option value="24h">24h</option>
+              <option value="7d">7d</option>
+            </select>
+
+            <span className="sw-clock">{lastSampleTime}</span>
+            <span className="sw-coord">
+              {snapshot?.location_name || "Ubicación no disponible"}
+            </span>
           </div>
         </div>
 
         <div className="sw-content">
-          {activeTab === TABS.GENERAL && renderGeneral()}
-          {activeTab === TABS.SOIL && renderSoil()}
-          {activeTab === TABS.VIBRATION && renderVibration()}
-          {activeTab === TABS.MPU && renderMPU()}
+          {loading && (
+            <div className="sw-section">
+              <div className="sw-mini-card">Cargando datos del dashboard...</div>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="sw-section">
+              <div className="sw-mini-card">Error: {error}</div>
+            </div>
+          )}
+
+          {!loading && !error && activeTab === TABS.GENERAL && renderGeneral()}
+          {!loading && !error && activeTab === TABS.SOIL && renderSoil()}
+          {!loading && !error && activeTab === TABS.VIBRATION && renderVibration()}
+          {!loading && !error && activeTab === TABS.MPU && renderMPU()}
           {activeTab === TABS.HISTORICAL && <Historico />}
         </div>
       </div>
