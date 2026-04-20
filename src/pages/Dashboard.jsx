@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState,useEffect } from "react";
 import Sidebar from "../components/Sidebar";
 import StatCard from "../components/StatCard";
 import SensorChart from "../components/SensorChart";
@@ -30,6 +30,7 @@ function average(arr = []) {
   if (!arr.length) return 0;
   return arr.reduce((a, b) => a + Number(b || 0), 0) / arr.length;
 }
+
 
 function getRiskSummaryFromSnapshot(snapshot) {
   if (!snapshot) {
@@ -72,6 +73,10 @@ function getRiskSummaryFromSnapshot(snapshot) {
   };
 }
 
+const isOnline =
+  snapshot?.sampled_at &&
+  Date.now() - new Date(snapshot.sampled_at).getTime() < 10000;
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState(TABS.GENERAL);
 
@@ -87,16 +92,21 @@ export default function Dashboard() {
     error,
     reload,
   } = useDashboardData("esp32-node-001", "24h");
+  useEffect(() => {
+    if (activeTab === TABS.HISTORICAL) return;
+
+    const interval = setInterval(() => {
+      reload();
+    }, 5000); // cada 5 segundos
+
+    return () => clearInterval(interval);
+  }, [activeTab, reload]);
 
   const handleSocketUpdate = useCallback(
-    async (incomingSnapshot) => {
+    (incomingSnapshot) => {
       setSnapshot(incomingSnapshot);
-
-      if (activeTab !== TABS.HISTORICAL) {
-        await reload();
-      }
     },
-    [activeTab, reload, setSnapshot]
+    [setSnapshot]
   );
 
   useSocketSnapshot(handleSocketUpdate);
@@ -277,6 +287,7 @@ export default function Dashboard() {
   );
 
   const renderGeneral = () => (
+    
     <div className="sw-section">
       {renderOverviewHero()}
       {renderQuickMetrics()}
@@ -593,7 +604,7 @@ export default function Dashboard() {
           <div className="sw-topbar-right">
             <span className="sw-live-pill">
               <span className="sw-live-dot" />
-              En línea
+              {isOnline ? "En línea" : "Desconectado"}
             </span>
 
             {refreshing && (

@@ -1,12 +1,11 @@
-export const formatHour = (value) => {
-  if (!value) return "--:--";
-  const date = new Date(value);
-
-  return date.toLocaleTimeString([], {
+export function formatHour(date) {
+  const d = new Date(date);
+  return d.toLocaleTimeString("es-BO", {
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
   });
-};
+}
 
 export const formatDateTime = (value) => {
   if (!value) return "--";
