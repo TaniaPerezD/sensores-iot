@@ -31,7 +31,6 @@ function average(arr = []) {
   return arr.reduce((a, b) => a + Number(b || 0), 0) / arr.length;
 }
 
-
 function getRiskSummaryFromSnapshot(snapshot) {
   if (!snapshot) {
     return {
@@ -73,10 +72,6 @@ function getRiskSummaryFromSnapshot(snapshot) {
   };
 }
 
-const isOnline =
-  snapshot?.sampled_at &&
-  Date.now() - new Date(snapshot.sampled_at).getTime() < 10000;
-
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState(TABS.GENERAL);
 
@@ -93,14 +88,16 @@ export default function Dashboard() {
     reload,
   } = useDashboardData("esp32-node-001", "24h");
   useEffect(() => {
-    if (activeTab === TABS.HISTORICAL) return;
+  if (activeTab === TABS.HISTORICAL) return;
 
-    const interval = setInterval(() => {
+  const interval = setInterval(() => {
       reload();
     }, 5000); // cada 5 segundos
 
     return () => clearInterval(interval);
   }, [activeTab, reload]);
+
+  
 
   const handleSocketUpdate = useCallback(
     (incomingSnapshot) => {
@@ -604,7 +601,7 @@ export default function Dashboard() {
           <div className="sw-topbar-right">
             <span className="sw-live-pill">
               <span className="sw-live-dot" />
-              {isOnline ? "En línea" : "Desconectado"}
+              En línea
             </span>
 
             {refreshing && (
