@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
-import Sidebar from "../components/Sidebar";
-import StatCard from "../components/StatCard";
-import SensorChart from "../components/SensorChart";
-import AlertPanel from "../components/AlertPanel";
-import StatusPanel from "../components/StatusPanel";
+import Sidebar from "../components/dashboard/Sidebar";
+import StatCard from "../components/dashboard/StatCard";
+import SensorChart from "../components/dashboard/SensorChart";
+import AlertPanel from "../components/dashboard/AlertPanel";
+import StatusPanel from "../components/dashboard/StatusPanel";
 import Historico from "./Historico";
 
 import { useDashboardData } from "../hooks/useDashboardData";
