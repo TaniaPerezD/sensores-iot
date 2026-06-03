@@ -47,7 +47,7 @@
 .ahl-wkpi-val {
   font-size: 16px;
   font-weight: 700;
-  color: var(--color-text, #1a1a1a);
+  color: var(--color-text, #a89880);
   line-height: 1.2;
 }
 
@@ -194,8 +194,6 @@
 
 /* ── Dark mode ───────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
-  .ahl-weather-label,
-  .ahl-wkpi-val,
   .ahl-detail-val {
     color: rgba(255, 255, 255, 0.9);
   }
