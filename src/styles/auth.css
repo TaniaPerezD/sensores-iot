@@ -460,3 +460,36 @@
   background: rgba(168, 87, 47, 0.08);
   color: #8f4f2c;
 }
+
+.auth-refined__field select {
+  width: 100%;
+  min-height: 56px;
+  border-radius: 14px;
+  border: 1px solid #dbcbbf;
+  background: #fffcfa;
+  color: #2d211d;
+  padding: 0 16px;
+  font-size: 1rem;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.auth-refined__field select:hover {
+  border-color: #cdb7a8;
+}
+
+.auth-refined__field select:focus {
+  border-color: #b56538;
+  box-shadow: 0 0 0 4px rgba(181, 101, 56, 0.1);
+  background: #fffdfa;
+}
+
+.auth-refined__field select.is-invalid {
+  border-color: #cc6f5a;
+  background: #fff9f8;
+}

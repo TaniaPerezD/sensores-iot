@@ -8,6 +8,10 @@ import Login from "../pages/auth/Login";
 import Register from "../pages/auth/Register";
 import Dashboard from "../pages/Dashboard";
 
+import CitizenLayout from "../pages/citizen/CitizenLayout";
+import CitizenHome from "../pages/citizen/CitizenHome";
+import MisReportes from "../pages/citizen/MisReportes";
+
 export default function AppRouter() {
   return (
     <BrowserRouter>
@@ -15,32 +19,16 @@ export default function AppRouter() {
         <Routes>
           <Route path="/" element={<Landing />} />
 
-          <Route
-            path="/login"
-            element={
-              <PublicOnlyRoute>
-                <Login />
-              </PublicOnlyRoute>
-            }
-          />
+          <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+          <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
 
-          <Route
-            path="/register"
-            element={
-              <PublicOnlyRoute>
-                <Register />
-              </PublicOnlyRoute>
-            }
-          />
+          <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["admin"]}><Dashboard /></ProtectedRoute>} />
 
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/ciudadano" element={<ProtectedRoute allowedRoles={["ciudadano"]}><CitizenLayout /></ProtectedRoute>}>
+            <Route index element={<Navigate to="inicio" replace />} />
+            <Route path="inicio" element={<CitizenHome />} />
+            <Route path="mis-reportes" element={<MisReportes />} />
+          </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

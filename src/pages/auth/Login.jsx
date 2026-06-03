@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Swal from "sweetalert2";
@@ -20,10 +20,7 @@ const swalTheme = {
 
 export default function Login() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { login } = useAuth();
-
-  const redirectTo = location.state?.from?.pathname || "/dashboard";
 
   const [form, setForm] = useState({
     email: "",
@@ -60,14 +57,8 @@ export default function Login() {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-
     setForm((prev) => ({ ...prev, [name]: value }));
-
-    setErrors((prev) => ({
-      ...prev,
-      [name]: "",
-      form: "",
-    }));
+    setErrors((prev) => ({ ...prev, [name]: "", form: "" }));
   };
 
   const handleSubmit = async (event) => {
@@ -91,6 +82,9 @@ export default function Login() {
         password: form.password,
       });
 
+      const role = response?.data?.user?.role;
+      const destination = role === "ciudadano" ? "/ciudadano" : "/dashboard";
+
       await Swal.fire({
         ...swalTheme,
         icon: "success",
@@ -100,15 +94,10 @@ export default function Login() {
         showConfirmButton: false,
       });
 
-      navigate(redirectTo, { replace: true });
+      navigate(destination, { replace: true });
     } catch (error) {
       const message = error?.message || "No se pudo iniciar sesión.";
-
-      setErrors((prev) => ({
-        ...prev,
-        form: message,
-      }));
-
+      setErrors((prev) => ({ ...prev, form: message }));
       await Swal.fire({
         ...swalTheme,
         icon: "error",
@@ -175,14 +164,13 @@ export default function Login() {
                     : "Verifica el formato del correo."
                   : "Usa el correo con el que te registraste."}
               </small>
-              {errors.email ? (
+              {errors.email && (
                 <div className="auth-refined__field-error">{errors.email}</div>
-              ) : null}
+              )}
             </label>
 
             <label className="auth-refined__field">
               <span>Contraseña</span>
-
               <div className="auth-refined__password-input-wrap">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -192,7 +180,6 @@ export default function Login() {
                   onChange={handleChange}
                   className={errors.password ? "is-invalid" : ""}
                 />
-
                 <button
                   type="button"
                   className="auth-refined__toggle-password"
@@ -202,19 +189,17 @@ export default function Login() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-
               <small className="auth-refined__helper">
                 Ingresa la contraseña asociada a tu cuenta.
               </small>
-
-              {errors.password ? (
+              {errors.password && (
                 <div className="auth-refined__field-error">{errors.password}</div>
-              ) : null}
+              )}
             </label>
 
-            {errors.form ? (
+            {errors.form && (
               <div className="auth-refined__error">{errors.form}</div>
-            ) : null}
+            )}
 
             <button
               type="submit"
