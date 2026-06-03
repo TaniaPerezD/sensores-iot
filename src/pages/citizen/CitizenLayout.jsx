@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { FileText, PlusCircle, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, LogOut } from "lucide-react";
 import "../../styles/citizen.css";
 
 export default function CitizenLayout() {
@@ -35,13 +35,13 @@ export default function CitizenLayout() {
 
         <nav className="cz-sidebar__nav">
           <NavLink
-            to="/ciudadano/nuevo-reporte"
+            to="/ciudadano/inicio"
             className={({ isActive }) =>
               `cz-nav-item ${isActive ? "cz-nav-item--active" : ""}`
             }
           >
-            <PlusCircle size={18} />
-            Reportar incidente
+            <LayoutDashboard size={18} />
+            Inicio
           </NavLink>
 
           <NavLink
