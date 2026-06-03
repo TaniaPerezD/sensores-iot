@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import SensorChart from "../components/SensorChart";
+import SensorChart from "../components/dashboard/SensorChart";
 import { useHistoryData } from "../hooks/useHistoryData";
 import { useSocketSnapshot } from "../hooks/useSocketSnapshot";
 import { formatDateTime, formatHour, formatNumber } from "../utils/formatters";
