@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { LayoutDashboard, FileText, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, Map, LogOut } from "lucide-react";
 import "../../styles/citizen.css";
 
 export default function CitizenLayout() {
@@ -42,6 +42,16 @@ export default function CitizenLayout() {
           >
             <LayoutDashboard size={18} />
             Inicio
+          </NavLink>
+
+          <NavLink
+            to="/ciudadano/mapa"
+            className={({ isActive }) =>
+              `cz-nav-item ${isActive ? "cz-nav-item--active" : ""}`
+            }
+          >
+            <Map size={18} />
+            Mapa de reportes
           </NavLink>
 
           <NavLink

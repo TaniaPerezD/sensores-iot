@@ -1,8 +1,10 @@
-import { LogOut, Settings, LayoutGrid, Droplets, Activity, Compass, History } from "lucide-react";
+import { LogOut, Settings, LayoutGrid, Droplets, Activity, Compass, History, Map } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }) {
   const { logout } = useAuth();
+  const navigate   = useNavigate();
 
   const items = [
     {
@@ -77,6 +79,20 @@ export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }
             </button>
           ))}
         </nav>
+
+        <div className="sw-sidebar-section-label">Herramientas</div>
+
+        {/* Mapa interactivo */}
+        <button
+          className="sw-nav-btn"
+          type="button"
+          onClick={() => navigate("/mapa")}
+        >
+          <span className="sw-nav-icon">
+            <Map size={16} strokeWidth={2} />
+          </span>
+          <span>Mapa interactivo</span>
+        </button>
 
         <div className="sw-sidebar-section-label">Sistema</div>
 

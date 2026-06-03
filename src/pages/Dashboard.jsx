@@ -1,10 +1,12 @@
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Sidebar from "../components/dashboard/Sidebar";
 import StatCard from "../components/dashboard/StatCard";
 import SensorChart from "../components/dashboard/SensorChart";
 import AlertPanel from "../components/dashboard/AlertPanel";
 import StatusPanel from "../components/dashboard/StatusPanel";
+import Historico from "./Historico";
+
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useSocketSnapshot } from "../hooks/useSocketSnapshot";
 import { formatHour, formatNumber, toNumeric } from "../utils/formatters";
@@ -86,23 +88,16 @@ export default function Dashboard() {
     error,
     reload,
   } = useDashboardData("esp32-node-001", "24h");
-  useEffect(() => {
-  if (activeTab === TABS.HISTORICAL) return;
-
-  const interval = setInterval(() => {
-      reload();
-    }, 5000); // cada 5 segundos
-
-    return () => clearInterval(interval);
-  }, [activeTab, reload]);
-
-  
 
   const handleSocketUpdate = useCallback(
-    (incomingSnapshot) => {
+    async (incomingSnapshot) => {
       setSnapshot(incomingSnapshot);
+
+      if (activeTab !== TABS.HISTORICAL) {
+        await reload();
+      }
     },
-    [setSnapshot]
+    [activeTab, reload, setSnapshot]
   );
 
   useSocketSnapshot(handleSocketUpdate);
@@ -283,7 +278,6 @@ export default function Dashboard() {
   );
 
   const renderGeneral = () => (
-    
     <div className="sw-section">
       {renderOverviewHero()}
       {renderQuickMetrics()}
