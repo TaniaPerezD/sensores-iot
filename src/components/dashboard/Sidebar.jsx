@@ -1,4 +1,4 @@
-import { LogOut, Settings, LayoutGrid, Droplets, Activity, Compass, History, Map, Bell, BellRing } from "lucide-react";
+import { LogOut, Settings, LayoutGrid, Droplets, Activity, Compass, History, Map, BellRing, Bell } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
