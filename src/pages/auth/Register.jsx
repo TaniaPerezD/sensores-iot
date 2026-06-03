@@ -50,6 +50,7 @@ export default function Register() {
     email: "",
     password: "",
     confirmPassword: "",
+    role: "",
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -81,6 +82,10 @@ export default function Register() {
       nextErrors.email = "Ingresa tu correo electrónico.";
     } else if (!emailRegex.test(form.email.trim())) {
       nextErrors.email = "Ingresa un correo válido.";
+    }
+
+    if (!form.role) {
+      nextErrors.role = "Selecciona un rol.";
     }
 
     if (!form.password) {
@@ -130,6 +135,7 @@ export default function Register() {
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password,
+        role: form.role,
       });
 
       await Swal.fire({
@@ -237,6 +243,23 @@ export default function Register() {
               {errors.email ? (
                 <div className="auth-refined__field-error">{errors.email}</div>
               ) : null}
+            </label>
+
+            <label className="auth-refined__field">
+              <span>Rol</span>
+              <select
+                name="role"
+                value={form.role}
+                onChange={handleChange}
+                className={errors.role ? "is-invalid" : ""}
+              >
+                <option value="" disabled>Selecciona un rol</option>
+                <option value="ciudadano">Ciudadano</option>
+                <option value="admin">Administrador</option>
+              </select>
+              <small className="auth-refined__helper">
+                Selecciona el tipo de acceso que tendrás en la plataforma.
+              </small>
             </label>
 
             <label className="auth-refined__field">

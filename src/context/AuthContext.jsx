@@ -85,12 +85,12 @@ export function AuthProvider({ children }) {
     return response;
   };
 
-  const register = async ({ name, email, password }) => {
+  const register = async ({ name, email, password, role }) => {
     const response = await registerUser({
       full_name: name?.trim(),
       email: email?.trim(),
       password,
-      role: "admin",
+      role: role || "ciudadano",
     });
 
     const sessionToken = response?.data?.token;
