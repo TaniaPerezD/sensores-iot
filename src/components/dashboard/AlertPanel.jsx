@@ -5,7 +5,7 @@ function useDangerSamples(deviceCode = "esp32-node-001", limit = 3) {
   const { rows, loading } = useRiskHistory(deviceCode, "24h");
 
   // Las más recientes primero (rows viene asc del backend)
-  const reversed  = [...rows].reverse();
+  const reversed  = rows; // backend ya devuelve desc
   const dangers   = reversed.filter((r) => r.risk_level === "danger");
   const lastLevel = reversed[0]?.risk_level ?? null;  // estado más reciente
 
