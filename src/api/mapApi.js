@@ -1,22 +1,19 @@
-import { getJson } from './http';
+import { getJson, patchJson } from './http';
 
-/**
- * Reportes ciudadanos geolocalizados.
- * @param {string} range - '1h' | '6h' | '12h' | '24h' | '2d' | '7d' | '30d'
- */
 export const getMapReports = (range = '7d') =>
   getJson(`/api/map/reports?range=${range}`);
 
-/**
- * Dispositivos IoT con coordenadas (solo admin).
- */
 export const getMapDevices = () =>
   getJson('/api/map/devices');
 
-/**
- * Alertas abiertas para el mapa.
- * Admin: detalladas. Ciudadano: reducidas.
- * @param {string} range - para admin, ej '24h' | '7d'
- */
 export const getMapAlerts = (range = '24h') =>
   getJson(`/api/map/alerts?range=${range}`);
+
+/**
+ * Cambia el estado de un reporte ciudadano.
+ * Solo para admin. Usa la ruta ya existente en el backend.
+ * @param {number|string} id
+ * @param {'pendiente'|'en_revision'|'atendido'|'descartado'} status
+ */
+export const updateReportStatus = (id, status) =>
+  patchJson(`/api/reports/${id}/status`, { status });

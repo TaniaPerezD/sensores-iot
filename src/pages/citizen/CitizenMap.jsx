@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { getMapReports, getMapAlerts } from '../../api/mapApi';
+import { useMapSocket } from '../../hooks/useMapSocket';
 import '../../styles/citizen.css';
 import '../../styles/map.css';
 
-// ─── Leaflet loader ──────────────────────────────────────────────────────────
 let L = null;
 const loadLeaflet = () =>
   new Promise((resolve) => {
@@ -19,7 +19,6 @@ const loadLeaflet = () =>
     document.head.appendChild(script);
   });
 
-// ─── Colores ─────────────────────────────────────────────────────────────────
 const URGENCY = {
   alta:  { color: '#8b2020', bg: '#fcebeb' },
   media: { color: '#b7791f', bg: '#faeeda' },
@@ -42,23 +41,22 @@ const INCIDENT_PATHS = {
   grieta:        'M12 3 L10 10 L14 10 L12 17 M8 20 L16 20',
   inundacion:    'M3 14 Q7 10 12 14 Q17 18 21 14 M3 18 Q7 14 12 18 Q17 22 21 18',
   derrumbe:      'M4 20 L8 10 L12 14 L16 6 L20 20 Z',
-  otro:          'M12 12 m-8 0 a8 8 0 1 0 16 0 a8 8 0 1 0-16 0 M12 8 L12 13 M12 16 L12 17',
+  otro:          'M12 4 a8 8 0 1 0 0 16 a8 8 0 1 0 0-16 M12 9 L12 13 M12 15 L12 16',
 };
 
-function buildMarkerSvg(incident_type, urgency_level) {
+function buildMarker(incident_type, urgency_level) {
   const u    = URGENCY[urgency_level] || URGENCY.baja;
   const path = INCIDENT_PATHS[incident_type] || INCIDENT_PATHS.otro;
   const size = urgency_level === 'alta' ? 42 : urgency_level === 'media' ? 36 : 30;
-  const r    = size / 2 - 2;
   const cx   = size / 2;
-  const svg  = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size + 10}" viewBox="0 0 ${size} ${size + 10}">
-    <filter id="ds"><feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="${u.color}" flood-opacity="0.3"/></filter>
-    <circle cx="${cx}" cy="${cx}" r="${r}" fill="${u.color}" filter="url(#ds)"/>
-    <circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
-    <g transform="translate(${cx - 7},${cx - 7}) scale(0.58)" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+  const svg  = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size+10}" viewBox="0 0 ${size} ${size+10}">
+    <filter id="s"><feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="${u.color}" flood-opacity="0.3"/></filter>
+    <circle cx="${cx}" cy="${cx}" r="${cx-2}" fill="${u.color}" filter="url(#s)"/>
+    <circle cx="${cx}" cy="${cx}" r="${cx-2}" fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
+    <g transform="translate(${cx-7},${cx-7}) scale(0.58)" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none">
       <path d="${path}"/>
     </g>
-    <polygon points="${cx - 5},${size - 3} ${cx + 5},${size - 3} ${cx},${size + 9}" fill="${u.color}"/>
+    <polygon points="${cx-5},${size-3} ${cx+5},${size-3} ${cx},${size+9}" fill="${u.color}"/>
   </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
@@ -66,11 +64,8 @@ function buildMarkerSvg(incident_type, urgency_level) {
 function buildPopup(r) {
   const u  = URGENCY[r.urgency_level] || URGENCY.baja;
   const sc = STATUS_COLOR[r.status] || '#7d6a5b';
-  const date = new Date(r.reported_at).toLocaleString('es-BO', {
-    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-  });
-  const photo = r.photo_url
-    ? `<div class="mp-popup-photo"><img src="${r.photo_url}" alt="Foto" loading="lazy"/></div>` : '';
+  const date = new Date(r.reported_at).toLocaleString('es-BO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const photo = r.photo_url ? `<div class="mp-popup-photo"><img src="${r.photo_url}" alt="Foto" loading="lazy"/></div>` : '';
   return `
     <div class="mp-popup">
       <div class="mp-popup-header" style="border-left:4px solid ${u.color}">
@@ -97,7 +92,6 @@ function buildPopup(r) {
     </div>`;
 }
 
-// ─── Componente ───────────────────────────────────────────────────────────────
 export default function CitizenMap() {
   const mapRef     = useRef(null);
   const mapObj     = useRef(null);
@@ -112,7 +106,7 @@ export default function CitizenMap() {
     setLoading(true); setError(null);
     try {
       const [rRes, aRes] = await Promise.all([
-        getMapReports('7d'),
+        getMapReports('7d'), // backend ya filtra descartados para ciudadano
         getMapAlerts('7d'),
       ]);
       setReports(rRes?.data || []);
@@ -126,6 +120,44 @@ export default function CitizenMap() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // ── Tiempo real ─────────────────────────────────────────────────────────────
+  const handleReportNew = useCallback((report) => {
+    // Solo agregar si no está descartado y tiene coordenadas
+    if (!report.latitude || !report.longitude) return;
+    if (report.status === 'descartado') return;
+    setReports(prev => prev.some(r => r.id === report.id) ? prev : [report, ...prev]);
+  }, []);
+
+  const handleReportStatusUpdated = useCallback((report) => {
+    if (report.status === 'descartado') {
+      // Eliminar del mapa del ciudadano
+      setReports(prev => prev.filter(r => r.id !== report.id));
+    } else {
+      // Actualizar estado visible
+      setReports(prev => prev.map(r => r.id === report.id ? { ...r, ...report } : r));
+    }
+  }, []);
+
+  const handleAlertNew = useCallback((alert) => {
+    setAlerts(prev => prev.some(a => a.id === alert.id) ? prev : [
+      { id: alert.id, device_code: alert.device_code, level: alert.level, title: alert.title, created_at: alert.created_at },
+      ...prev,
+    ]);
+  }, []);
+
+  const handleAlertResolved = useCallback(({ id }) => {
+    setAlerts(prev => prev.filter(a => a.id !== id));
+  }, []);
+
+  useMapSocket({
+    onReportNew:           handleReportNew,
+    onReportStatusUpdated: handleReportStatusUpdated,
+    onAlertNew:            handleAlertNew,
+    onAlertResolved:       handleAlertResolved,
+    // No suscribir onDeviceSeen — ciudadano no ve dispositivos
+  });
+
+  // ── Leaflet ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (mapObj.current || !mapRef.current) return;
     loadLeaflet().then((Lx) => {
@@ -146,10 +178,10 @@ export default function CitizenMap() {
       if (!r.latitude || !r.longitude) return;
       const size = r.urgency_level === 'alta' ? 42 : r.urgency_level === 'media' ? 36 : 30;
       const icon = L.icon({
-        iconUrl:    buildMarkerSvg(r.incident_type, r.urgency_level),
+        iconUrl:    buildMarker(r.incident_type, r.urgency_level),
         iconSize:   [size, size + 10],
         iconAnchor: [size / 2, size + 10],
-        popupAnchor:[0, -(size + 10)],
+        popupAnchor:[0, -(size + 12)],
       });
       L.marker([parseFloat(r.latitude), parseFloat(r.longitude)], { icon })
         .addTo(layerGroup.current)
@@ -161,22 +193,18 @@ export default function CitizenMap() {
 
   return (
     <div className="czmap-page">
-      {/* Alerta crítica banner */}
       {criticalAlerts > 0 && (
         <div className="czmap-alert-banner">
           <AlertTriangle size={15}/>
           <span>Hay <strong>{criticalAlerts} alerta(s) crítica(s)</strong> activa(s) en la zona.</span>
         </div>
       )}
-
       {error && (
         <div className="czmap-error-banner">
           <AlertTriangle size={14}/> {error}
           <button onClick={fetchData}>Reintentar</button>
         </div>
       )}
-
-      {/* Mapa ocupa todo el espacio */}
       <div className="czmap-wrap">
         {loading && (
           <div className="czmap-loading">
@@ -186,8 +214,6 @@ export default function CitizenMap() {
         )}
         <div ref={mapRef} className="czmap-leaflet"/>
       </div>
-
-      {/* Leyenda flotante */}
       <div className="czmap-legend">
         {Object.entries(URGENCY).map(([k, v]) => (
           <div key={k} className="czmap-legend-item">
