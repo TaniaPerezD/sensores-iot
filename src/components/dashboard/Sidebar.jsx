@@ -1,4 +1,4 @@
-import { LogOut, Settings, LayoutGrid, Droplets, Activity, Compass, History, Map } from "lucide-react";
+import { LogOut, Settings, LayoutGrid, Droplets, Activity, Compass, History, Map, Bell, BellRing } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -31,6 +31,12 @@ export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }
       key: tabs.HISTORICAL,
       label: "Histórico",
       icon: <History size={16} strokeWidth={2} />,
+    },
+    {
+      key: tabs.ALERTS,
+      label: "Alertas",
+      icon: <Bell size={16} strokeWidth={2} />,
+      badge: criticalCount > 0 ? <BellRing size={14} strokeWidth={2.5} /> : null,
     },
   ];
 
@@ -76,13 +82,15 @@ export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }
             >
               <span className="sw-nav-icon">{item.icon}</span>
               <span>{item.label}</span>
+              {item.badge && (
+                <span className="sw-nav-badge">{item.badge}</span>
+              )}
             </button>
           ))}
         </nav>
 
         <div className="sw-sidebar-section-label">Herramientas</div>
 
-        {/* Mapa interactivo */}
         <button
           className="sw-nav-btn"
           type="button"

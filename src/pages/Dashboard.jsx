@@ -1,4 +1,3 @@
-
 import { useCallback, useMemo, useState } from "react";
 import Sidebar from "../components/dashboard/Sidebar";
 import StatCard from "../components/dashboard/StatCard";
@@ -6,9 +5,11 @@ import SensorChart from "../components/dashboard/SensorChart";
 import AlertPanel from "../components/dashboard/AlertPanel";
 import StatusPanel from "../components/dashboard/StatusPanel";
 import Historico from "./Historico";
+import AlertasHistorico from "./AlertasHistorico";
 
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useSocketSnapshot } from "../hooks/useSocketSnapshot";
+import { useAlerts } from "../hooks/useAlerts";           // ← NUEVO
 import { formatHour, formatNumber, toNumeric } from "../utils/formatters";
 import {
   getSoilStatus,
@@ -25,6 +26,7 @@ const TABS = {
   VIBRATION: "vibration",
   MPU: "mpu",
   HISTORICAL: "historical",
+  ALERTS: "alerts",
 };
 
 function average(arr = []) {
@@ -89,6 +91,15 @@ export default function Dashboard() {
     reload,
   } = useDashboardData("esp32-node-001", "24h");
 
+  // ─── Alertas reales del backend ──────────────────────────────────────────
+  const {
+    alerts,
+    criticalCount,
+    loading: alertsLoading,
+    reload: reloadAlerts,
+  } = useAlerts("esp32-node-001", "24h");
+
+  // ─── Socket: actualiza snapshot + recarga alertas ────────────────────────
   const handleSocketUpdate = useCallback(
     async (incomingSnapshot) => {
       setSnapshot(incomingSnapshot);
@@ -96,12 +107,17 @@ export default function Dashboard() {
       if (activeTab !== TABS.HISTORICAL) {
         await reload();
       }
+
+      // Recarga alertas cada vez que llega un nuevo snapshot
+      // para reflejar en tiempo real si se generó una nueva alerta
+      await reloadAlerts();
     },
-    [activeTab, reload, setSnapshot]
+    [activeTab, reload, setSnapshot, reloadAlerts]
   );
 
   useSocketSnapshot(handleSocketUpdate);
 
+  // ─── Series de gráficos ──────────────────────────────────────────────────
   const data = useMemo(() => {
     return {
       soil: Array.isArray(series?.soil) ? series.soil : [],
@@ -122,99 +138,28 @@ export default function Dashboard() {
     };
   }, [series]);
 
+  // ─── Valores actuales del snapshot ──────────────────────────────────────
   const sv = toNumeric(snapshot?.soilPercent, 0);
   const vv = toNumeric(snapshot?.vibrationCount, 0);
   const av = toNumeric(snapshot?.accelMagnitude, 0);
   const gv = toNumeric(snapshot?.gyroMagnitude, 0);
 
-  const soilStatus = getSoilStatus(sv);
-  const vibStatus = getVibrationStatus(vv);
+  const soilStatus  = getSoilStatus(sv);
+  const vibStatus   = getVibrationStatus(vv);
   const accelStatus = getAccelStatus(av);
-  const gyroStatus = getGyroStatus(gv);
+  const gyroStatus  = getGyroStatus(gv);
 
   const riskSummary = getRiskSummaryFromSnapshot(snapshot);
 
-  const alerts = useMemo(() => {
-    const items = [];
-
-    if (soilStatus.type === "high") {
-      items.push({
-        title: "Humedad crítica del suelo",
-        description: `${formatNumber(
-          sv,
-          0
-        )}% — riesgo elevado de saturación`,
-        type: "high",
-      });
-    } else if (soilStatus.type === "med") {
-      items.push({
-        title: "Humedad elevada",
-        description: `${formatNumber(sv, 0)}% — vigilar tendencia`,
-        type: "med",
-      });
-    }
-
-    if (vibStatus.type === "high") {
-      items.push({
-        title: "Alta actividad vibratoria",
-        description: `${vv} eventos en el intervalo actual`,
-        type: "high",
-      });
-    } else if (vibStatus.type === "med") {
-      items.push({
-        title: "Vibración moderada",
-        description: `${vv} eventos registrados`,
-        type: "med",
-      });
-    }
-
-    if (accelStatus.type === "high") {
-      items.push({
-        title: "Desplazamiento detectado",
-        description: `Magnitud ${formatNumber(av, 2)} — anormal`,
-        type: "high",
-      });
-    } else if (accelStatus.type === "med") {
-      items.push({
-        title: "Movimiento moderado",
-        description: `Magnitud ${formatNumber(av, 2)} — observar evolución`,
-        type: "med",
-      });
-    }
-
-    if (gyroStatus.type === "high") {
-      items.push({
-        title: "Rotación crítica",
-        description: `Magnitud ${formatNumber(gv, 2)} °/s`,
-        type: "high",
-      });
-    } else if (gyroStatus.type === "med") {
-      items.push({
-        title: "Rotación moderada",
-        description: `Magnitud ${formatNumber(gv, 2)} °/s`,
-        type: "med",
-      });
-    }
-
-    if (!items.length) {
-      items.push({
-        title: "Terreno estable",
-        description: "Sin anomalías relevantes en este momento",
-        type: "ok",
-      });
-    }
-
-    return items;
-  }, [sv, vv, av, gv, soilStatus, vibStatus, accelStatus, gyroStatus]);
-
-  const criticalCount = alerts.filter((a) => a.type === "high").length;
-  const avgSoil = average(data.soil);
-  const avgVib = average(data.vib);
+  const avgSoil  = average(data.soil);
+  const avgVib   = average(data.vib);
   const avgAccel = average(data.accel);
 
   const lastSampleTime = snapshot?.sampled_at
     ? formatHour(snapshot.sampled_at)
     : "--:--";
+
+  // ─── Render helpers ──────────────────────────────────────────────────────
 
   const renderOverviewHero = () => (
     <div className={`sw-hero sw-hero--${riskSummary.type}`}>
@@ -318,7 +263,12 @@ export default function Dashboard() {
       </div>
 
       <div className="sw-mid-grid">
-        <AlertPanel alerts={alerts} criticalCount={criticalCount} />
+        {/* AlertPanel ahora consume alertas reales del backend */}
+        <AlertPanel
+          alerts={alerts}
+          criticalCount={criticalCount}
+          loading={alertsLoading}
+        />
         <StatusPanel
           soilStatus={soilStatus}
           vibStatus={vibStatus}
@@ -569,9 +519,13 @@ export default function Dashboard() {
       title: "Histórico de eventos",
       sub: "Registro completo de sensores",
     },
+    [TABS.ALERTS]: {
+      title: "Historial de alertas",
+      sub: "Registro y clima · esp32-node-001",
+    },
   };
 
-  const meta = PAGE_META[activeTab];
+  const meta = PAGE_META[activeTab] ?? PAGE_META[TABS.GENERAL];
 
   return (
     <div className="sw-layout">
@@ -640,11 +594,12 @@ export default function Dashboard() {
             </div>
           )}
 
-          {!loading && !error && activeTab === TABS.GENERAL && renderGeneral()}
-          {!loading && !error && activeTab === TABS.SOIL && renderSoil()}
-          {!loading && !error && activeTab === TABS.VIBRATION && renderVibration()}
-          {!loading && !error && activeTab === TABS.MPU && renderMPU()}
+          {!loading && !error && activeTab === TABS.GENERAL    && renderGeneral()}
+          {!loading && !error && activeTab === TABS.SOIL       && renderSoil()}
+          {!loading && !error && activeTab === TABS.VIBRATION  && renderVibration()}
+          {!loading && !error && activeTab === TABS.MPU        && renderMPU()}
           {activeTab === TABS.HISTORICAL && <Historico />}
+          {activeTab === TABS.ALERTS && <AlertasHistorico />}
         </div>
       </div>
     </div>
