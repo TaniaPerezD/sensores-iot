@@ -1,4 +1,4 @@
-import { LogOut, Settings, LayoutGrid, Droplets, Activity, Compass, History, Map, Bell } from "lucide-react";
+import { LogOut, Settings, LayoutGrid, Droplets, Activity, Compass, History, Map, Bell, BellRing } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -36,7 +36,7 @@ export default function Sidebar({ activeTab, setActiveTab, tabs, criticalCount }
       key: tabs.ALERTS,
       label: "Alertas",
       icon: <Bell size={16} strokeWidth={2} />,
-      badge: criticalCount > 0 ? criticalCount : null,
+      badge: criticalCount > 0 ? <BellRing size={14} strokeWidth={2.5} /> : null,
     },
   ];
 
