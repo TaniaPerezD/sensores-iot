@@ -1,4 +1,4 @@
-export default function AlertPanel({ alerts, criticalCount }) {
+export default function AlertPanel({ alerts, criticalCount, loading = false }) {
   const iconOk = (
     <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
       <path
@@ -44,22 +44,36 @@ export default function AlertPanel({ alerts, criticalCount }) {
             criticalCount > 0 ? "high" : "low"
           }`}
         >
-          {criticalCount > 0 ? `${criticalCount} críticas` : "Sin alertas"}
+          {loading
+            ? "Cargando..."
+            : criticalCount > 0
+            ? `${criticalCount} críticas`
+            : "Sin alertas"}
         </span>
       </div>
 
       <div className="sw-card-body">
-        {alerts.map((a, i) => (
-          <div key={i} className={`sw-alert sw-alert--${a.type}`}>
-            <div className={`sw-alert-icon sw-alert-icon--${a.type}`}>
-              {iconMap[a.type]}
-            </div>
+        {loading ? (
+          <div className="sw-alert sw-alert--ok">
+            <div className="sw-alert-icon sw-alert-icon--ok">{iconOk}</div>
             <div>
-              <div className="sw-alert-title">{a.title}</div>
-              <div className="sw-alert-desc">{a.description}</div>
+              <div className="sw-alert-title">Consultando alertas...</div>
+              <div className="sw-alert-desc">Conectando con el servidor</div>
             </div>
           </div>
-        ))}
+        ) : (
+          alerts.map((a, i) => (
+            <div key={a.id ?? i} className={`sw-alert sw-alert--${a.type}`}>
+              <div className={`sw-alert-icon sw-alert-icon--${a.type}`}>
+                {iconMap[a.type] ?? iconOk}
+              </div>
+              <div>
+                <div className="sw-alert-title">{a.title}</div>
+                <div className="sw-alert-desc">{a.description}</div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
