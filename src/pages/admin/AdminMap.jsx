@@ -373,6 +373,7 @@ function DeviceDetail({ device, alerts }) {
       {devAlerts.length === 0 ? (
         <div className="mp-detail-no-alerts"><CheckCircle size={15}/> Sin alertas activas</div>
       ) : (
+        <div className="mp-detail-alerts-wrap">
         <div className="mp-detail-alerts">
           {devAlerts.map(a => (
             <div key={a.id} className="mp-detail-alert" style={{ borderLeft: `3px solid ${ALERT_COLOR[a.level]||'#b7791f'}` }}>
@@ -389,6 +390,7 @@ function DeviceDetail({ device, alerts }) {
               </div>
             </div>
           ))}
+        </div>
         </div>
       )}
     </div>
