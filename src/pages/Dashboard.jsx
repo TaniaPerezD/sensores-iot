@@ -9,7 +9,6 @@ import AlertasHistorico from "./AlertasHistorico";
 
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useSocketSnapshot } from "../hooks/useSocketSnapshot";
-import { useAlerts } from "../hooks/useAlerts";           // ← NUEVO
 import { formatHour, formatNumber, toNumeric } from "../utils/formatters";
 import {
   getSoilStatus,
@@ -91,13 +90,7 @@ export default function Dashboard() {
     reload,
   } = useDashboardData("esp32-node-001", "24h");
 
-  // ─── Alertas reales del backend ──────────────────────────────────────────
-  const {
-    alerts,
-    criticalCount,
-    loading: alertsLoading,
-    reload: reloadAlerts,
-  } = useAlerts("esp32-node-001", "24h");
+  const criticalCount = 0; // AlertPanel lo calcula internamente
 
   // ─── Socket: actualiza snapshot + recarga alertas ────────────────────────
   const handleSocketUpdate = useCallback(
@@ -108,11 +101,9 @@ export default function Dashboard() {
         await reload();
       }
 
-      // Recarga alertas cada vez que llega un nuevo snapshot
-      // para reflejar en tiempo real si se generó una nueva alerta
-      await reloadAlerts();
+
     },
-    [activeTab, reload, setSnapshot, reloadAlerts]
+    [activeTab, reload, setSnapshot]
   );
 
   useSocketSnapshot(handleSocketUpdate);
@@ -263,11 +254,9 @@ export default function Dashboard() {
       </div>
 
       <div className="sw-mid-grid">
-        {/* AlertPanel ahora consume alertas reales del backend */}
+        {/* AlertPanel consume useRiskHistory internamente */}
         <AlertPanel
-          alerts={alerts}
           criticalCount={criticalCount}
-          loading={alertsLoading}
         />
         <StatusPanel
           soilStatus={soilStatus}

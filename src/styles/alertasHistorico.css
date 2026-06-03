@@ -28,7 +28,7 @@
 .ahl-weather-label {
   font-size: 15px;
   font-weight: 600;
-  color: var(--color-text, #1a1a1a);
+  color:  #1a1a1a;
 }
 
 .ahl-weather-kpis {
@@ -47,7 +47,7 @@
 .ahl-wkpi-val {
   font-size: 16px;
   font-weight: 700;
-  color: var(--color-text, #1a1a1a);
+  color: var(--color-text, #a89880);
   line-height: 1.2;
 }
 
@@ -194,8 +194,6 @@
 
 /* ── Dark mode ───────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
-  .ahl-weather-label,
-  .ahl-wkpi-val,
   .ahl-detail-val {
     color: rgba(255, 255, 255, 0.9);
   }
@@ -228,4 +226,45 @@
   align-items: center;
   justify-content: center;
   line-height: 1;
+}
+
+/* ── Botón resolver ──────────────────────────────────── */
+.ahl-resolve-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(59, 109, 17, 0.35);
+  background: rgba(59, 109, 17, 0.08);
+  color: #27500A;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+.ahl-resolve-btn:hover:not(:disabled) {
+  background: rgba(59, 109, 17, 0.18);
+}
+
+.ahl-resolve-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Versión dentro del panel de detalle expandido */
+.ahl-resolve-btn--detail {
+  font-size: 12px;
+  padding: 5px 14px;
+  margin-top: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ahl-resolve-btn {
+    border-color: rgba(192, 221, 151, 0.3);
+    background: rgba(59, 109, 17, 0.15);
+    color: #C0DD97;
+  }
+  .ahl-resolve-btn:hover:not(:disabled) {
+    background: rgba(59, 109, 17, 0.28);
+  }
 }
