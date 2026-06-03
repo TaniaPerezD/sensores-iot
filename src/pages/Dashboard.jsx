@@ -5,6 +5,7 @@ import SensorChart from "../components/dashboard/SensorChart";
 import AlertPanel from "../components/dashboard/AlertPanel";
 import StatusPanel from "../components/dashboard/StatusPanel";
 import Historico from "./Historico";
+import AlertasHistorico from "./AlertasHistorico";
 
 import { useDashboardData } from "../hooks/useDashboardData";
 import { useSocketSnapshot } from "../hooks/useSocketSnapshot";
@@ -25,6 +26,7 @@ const TABS = {
   VIBRATION: "vibration",
   MPU: "mpu",
   HISTORICAL: "historical",
+  ALERTS: "alerts",
 };
 
 function average(arr = []) {
@@ -517,9 +519,13 @@ export default function Dashboard() {
       title: "Histórico de eventos",
       sub: "Registro completo de sensores",
     },
+    [TABS.ALERTS]: {
+      title: "Historial de alertas",
+      sub: "Registro y clima · esp32-node-001",
+    },
   };
 
-  const meta = PAGE_META[activeTab];
+  const meta = PAGE_META[activeTab] ?? PAGE_META[TABS.GENERAL];
 
   return (
     <div className="sw-layout">
@@ -593,6 +599,7 @@ export default function Dashboard() {
           {!loading && !error && activeTab === TABS.VIBRATION  && renderVibration()}
           {!loading && !error && activeTab === TABS.MPU        && renderMPU()}
           {activeTab === TABS.HISTORICAL && <Historico />}
+          {activeTab === TABS.ALERTS && <AlertasHistorico />}
         </div>
       </div>
     </div>

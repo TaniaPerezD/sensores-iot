@@ -1,0 +1,231 @@
+/* ═══════════════════════════════════════════════════════
+   AlertasHistorico — estilos específicos de la página
+   Todas las clases base (sw-card, sw-kpi, etc.) vienen
+   de dashboard.css / map.css ya existentes.
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Banda del clima ─────────────────────────────────── */
+.ahl-weather-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 16px 20px;
+}
+
+.ahl-weather-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 160px;
+}
+
+.ahl-weather-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.ahl-weather-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text, #1a1a1a);
+}
+
+.ahl-weather-kpis {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.ahl-wkpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ahl-wkpi-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text, #1a1a1a);
+  line-height: 1.2;
+}
+
+.ahl-weather-risk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.ahl-weather-risk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Tabla de alertas ────────────────────────────────── */
+.ahl-table {
+  width: 100%;
+}
+
+/* Niveles: punto de color */
+.ahl-level-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.ahl-level-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.ahl-level-badge--high {
+  background: rgba(163, 45, 45, 0.12);
+  color: #791F1F;
+}
+
+.ahl-level-badge--med {
+  background: rgba(186, 117, 23, 0.12);
+  color: #633806;
+}
+
+.ahl-level-badge--neutral {
+  background: rgba(58, 85, 96, 0.10);
+  color: #3a5560;
+}
+
+/* Columnas: ancho y alineación */
+.ahl-col-title { max-width: 220px; }
+.ahl-col-code  { font-family: monospace; font-size: 12px; }
+.ahl-col-val,
+.ahl-col-thresh { text-align: right; font-variant-numeric: tabular-nums; }
+.ahl-col-time   { white-space: nowrap; font-size: 12px; }
+.ahl-col-chevron { text-align: center; width: 28px; }
+
+/* Estado abierto / resuelto */
+.ahl-open {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(163, 45, 45, 0.10);
+  color: #791F1F;
+}
+
+.ahl-resolved {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(59, 109, 17, 0.10);
+  color: #27500A;
+}
+
+/* Fila hover */
+.ahl-row {
+  transition: background 0.12s;
+}
+
+.ahl-row:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.ahl-row--open {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* Chevron */
+.ahl-chevron {
+  display: inline-block;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text-secondary, #888);
+  transition: transform 0.2s;
+}
+
+.ahl-chevron--open {
+  transform: rotate(90deg);
+}
+
+/* Fila de detalle expandida */
+.ahl-detail-row td {
+  padding: 0 !important;
+  border-top: none !important;
+}
+
+.ahl-detail-body {
+  padding: 14px 20px 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ahl-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.ahl-detail-val {
+  font-size: 13px;
+  color: var(--color-text, #1a1a1a);
+  margin-top: 3px;
+  word-break: break-word;
+}
+
+.ahl-detail-val--mono {
+  font-family: monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+/* ── Dark mode ───────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .ahl-weather-label,
+  .ahl-wkpi-val,
+  .ahl-detail-val {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .ahl-level-badge--high  { background: rgba(163, 45, 45, 0.22); color: #F09595; }
+  .ahl-level-badge--med   { background: rgba(186, 117, 23, 0.22); color: #FAC775; }
+  .ahl-level-badge--neutral{ background: rgba(58, 85, 96, 0.22); color: #9ab8c4; }
+
+  .ahl-open     { background: rgba(163, 45, 45, 0.22); color: #F09595; }
+  .ahl-resolved { background: rgba(59, 109, 17, 0.22); color: #C0DD97; }
+
+  .ahl-row:hover     { background: rgba(255, 255, 255, 0.04); }
+  .ahl-row--open     { background: rgba(255, 255, 255, 0.05); }
+  .ahl-detail-body   { background: rgba(255, 255, 255, 0.02); }
+  .ahl-chevron       { color: rgba(255, 255, 255, 0.4); }
+}
+
+/* ── Badge de conteo en el sidebar ──────────────────────── */
+.sw-nav-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #A32D2D;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
