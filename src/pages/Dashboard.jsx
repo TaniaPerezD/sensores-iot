@@ -4,6 +4,7 @@ import StatCard from "../components/dashboard/StatCard";
 import SensorChart from "../components/dashboard/SensorChart";
 import AlertPanel from "../components/dashboard/AlertPanel";
 import StatusPanel from "../components/dashboard/StatusPanel";
+import LSTMPredictionCard from "../components/dashboard/LSTMPredictionCard";
 import Historico from "./Historico";
 import AlertasHistorico from "./AlertasHistorico";
 
@@ -269,6 +270,8 @@ export default function Dashboard() {
           }}
         />
       </div>
+
+      <LSTMPredictionCard deviceCode={deviceCode} />
 
       <div className="sw-chart-grid">
         <SensorChart
